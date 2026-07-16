@@ -503,11 +503,28 @@ main {
 
 .btn-primary:hover { box-shadow: 0 0 0 1px var(--accent), 0 12px 40px rgba(16, 217, 138, .34); }
 
+/* Apagado, pero VIVO: se ve inactivo y aun así se puede tocar, porque al
+   tocarlo te lleva a lo que te falta. Por eso el cursor sigue siendo de
+   mano y no el de "prohibido": sí hace algo. */
+.btn-primary.is-apagado {
+  background: var(--glass-2);
+  color: var(--text-3);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-primary.is-apagado:hover {
+  background: var(--glass-2);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Este sí está muerto de verdad: solo mientras se está enviando. */
 .btn-primary:disabled {
   background: var(--glass-2);
   color: var(--text-3);
   box-shadow: none;
-  cursor: not-allowed;
+  cursor: wait;
   transform: none;
 }
 
@@ -718,6 +735,17 @@ main {
 .partido:hover { border-color: var(--stroke-2); }
 .partido.is-picked { border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
 
+/* Cuando el botón te trae hasta aquí, la tarjeta parpadea para que el ojo
+   caiga solita en ella y no tengas que buscar cuál te faltó. */
+.partido.is-buscado {
+  border-color: var(--accent);
+  animation: buscado 1.1s var(--ease) 2;
+}
+
+@keyframes buscado {
+  50% { box-shadow: 0 0 0 5px var(--accent-soft); }
+}
+
 .partido-meta {
   display: flex;
   align-items: center;
@@ -739,7 +767,15 @@ main {
   margin-bottom: 14px;
 }
 
-.team { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* Los dos equipos se recargan contra el VS del centro, no contra las orillas
+   de la tarjeta. En celular no se nota porque no sobra espacio, pero en una
+   pantalla de computadora la tarjeta mide ~880px: sin esto, el local se iba
+   hasta la esquina izquierda y quedaba un hueco enorme a media tarjeta.
+   Pegados al centro se lee como marcador de estadio. */
+.team { display: flex; align-items: center; gap: 10px; min-width: 0; justify-content: flex-end; }
+
+/* row-reverse pone el escudo del lado de afuera (espejo del local), y con
+   flex-end los ítems se recorren hacia el centro. */
 .team-away { justify-content: flex-end; flex-direction: row-reverse; }
 
 .team-logo {
@@ -952,6 +988,188 @@ main {
 .ev-mine.is-hit { background: var(--accent-soft); color: var(--accent); }
 .ev-mine.is-miss { background: color-mix(in srgb, var(--live) 14%, transparent); color: var(--live); }
 
+/* ── El bote, en grande ─────────────────────────────────────────────────
+   Es la razón por la que la gente entra. El resto de la página es de vidrio
+   y susurra; esto grita a propósito: es lo único con color sólido. */
+
+.bote-banner {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: clamp(22px, 4vw, 34px) clamp(20px, 4vw, 38px);
+  border-radius: var(--r-xl);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: var(--accent-ink);
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent-2) 90%, #fff) 0%, transparent 55%),
+    linear-gradient(115deg, var(--accent) 0%, var(--accent-2) 100%);
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+/* Un brillo que barre el banner cada tanto, como el reflejo de una moneda */
+.bote-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -60%;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .28), transparent);
+  transform: skewX(-18deg);
+  animation: brillo 5.5s var(--ease) infinite;
+  pointer-events: none;
+}
+
+@keyframes brillo {
+  0%, 62% { left: -60%; }
+  100% { left: 130%; }
+}
+
+.bote-banner-copy { position: relative; z-index: 1; flex: 1; min-width: 0; }
+
+.bote-banner-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  opacity: .78;
+  margin-bottom: 6px;
+}
+
+.bote-banner-label svg { width: 15px; height: 15px; }
+
+/* La cifra. Enorme a propósito, y con números de ancho fijo para que al
+   subir el bote no bailen los dígitos. */
+.bote-cifra {
+  display: block;
+  font-size: clamp(2.6rem, 9vw, 4.2rem);
+  font-weight: 800;
+  letter-spacing: -.05em;
+  line-height: .95;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 3px 18px rgba(0, 0, 0, .18);
+}
+
+.bote-pill {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: var(--r-full);
+  font-size: .82rem;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--accent-ink) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-ink) 12%, transparent);
+}
+
+.bote-art {
+  position: relative;
+  z-index: 1;
+  width: clamp(96px, 16vw, 148px);
+  flex: none;
+  color: var(--accent-ink);
+  opacity: .9;
+}
+
+/* La alcancía respira y el billete cae, en bucle */
+.bote-art .cerdo { animation: respira 4s var(--ease) infinite; transform-origin: 60px 60px; }
+.bote-art .billete { animation: cae 4s var(--ease) infinite; }
+
+@keyframes respira { 50% { transform: scale(1.04); } }
+
+@keyframes cae {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  45% { transform: translateY(16px) rotate(8deg); opacity: 1; }
+  60%, 99% { transform: translateY(26px) rotate(14deg); opacity: 0; }
+}
+
+/* Chispitas flotando */
+.bote-chispas span {
+  position: absolute;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  opacity: .35;
+  animation: flota 6s var(--ease) infinite;
+}
+
+.bote-chispas span:nth-child(1) { top: 22%; left: 58%; animation-delay: 0s; }
+.bote-chispas span:nth-child(2) { top: 68%; left: 44%; animation-delay: 1.4s; width: 3px; height: 3px; }
+.bote-chispas span:nth-child(3) { top: 38%; left: 76%; animation-delay: 2.6s; }
+.bote-chispas span:nth-child(4) { top: 78%; left: 66%; animation-delay: 3.8s; width: 3px; height: 3px; }
+
+@keyframes flota {
+  0%, 100% { transform: translateY(0) scale(1); opacity: .35; }
+  50% { transform: translateY(-14px) scale(1.5); opacity: .8; }
+}
+
+/* ── Va ganando ─────────────────────────────────────────────────────── */
+
+.lider-panel {
+  margin-bottom: 14px;
+  padding: 16px 20px;
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.lider-corona {
+  width: 40px; height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 9px;
+  border-radius: 12px;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.lider-copy { flex: 1; min-width: 0; }
+
+.lider-label {
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.lider-nombre {
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lider-sub { font-size: .84rem; color: var(--text-2); }
+.lider-sub b { color: var(--text); font-weight: 700; }
+
+.lider-live {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--r-full);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--live);
+  background: color-mix(in srgb, var(--live) 14%, transparent);
+}
+
 /* ── Tabla ──────────────────────────────────────────────────────────── */
 
 .tabla-wrap {
@@ -1028,9 +1246,11 @@ main {
 
 /* ── Pronósticos de todos ───────────────────────────────────────────── */
 
+/* 280px es a propósito: con chips de 38px caben 5 escudos por renglón, así
+   los 9 picks quedan en dos filas parejas en vez de tres desiguales. */
 .todos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 12px;
 }
 
@@ -1063,22 +1283,60 @@ main {
 .todo-name { font-weight: 650; font-size: .94rem; letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-sub { font-size: .74rem; color: var(--text-3); }
 
-.todo-picks { display: flex; flex-wrap: wrap; gap: 5px; }
+.todo-picks { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* Cada chip es un pick dibujado: el escudo del equipo por el que le fue.
+   Se lee de un vistazo, sin traducir letras en la cabeza. */
 .chip {
-  width: 26px; height: 26px;
+  width: 38px; height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 11px;
   font-size: .72rem;
   font-weight: 750;
   background: var(--glass-2);
   border: 1px solid var(--stroke);
   color: var(--text-2);
+  transition: transform .25s var(--ease-back), border-color .25s var(--ease);
+  cursor: default;
 }
 
-.chip.is-hit { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.chip.is-miss { background: color-mix(in srgb, var(--live) 12%, transparent); color: var(--live); border-color: transparent; }
+.chip:hover { transform: translateY(-2px) scale(1.06); }
+
+.chip img {
+  width: 25px; height: 25px;
+  object-fit: contain;
+  /* Los escudos traen mil colores; una sombrita los despega del fondo */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .25));
+}
+
+/* Empate: los dos escudos con una × en medio. Dice "estos dos se reparten"
+   sin necesidad de leyenda. */
+.chip-empate {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 3px;
+}
+
+.chip-empate img { width: 14px; height: 14px; }
+.chip-empate i { font-style: normal; font-size: .6rem; color: var(--text-3); font-weight: 700; }
+
+/* Ya que terminó el partido: verde si le atinó, rojo si no. El anillo se ve
+   aunque el escudo de adentro sea del color que sea. */
+.chip.is-hit {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.chip.is-miss {
+  background: color-mix(in srgb, var(--live) 12%, transparent);
+  border-color: color-mix(in srgb, var(--live) 60%, transparent);
+  opacity: .6;
+}
+
+.chip.is-miss img { filter: grayscale(1); }
 
 .todo-locked { font-size: .8rem; color: var(--text-3); display: flex; align-items: center; gap: 7px; }
 .todo-locked svg { width: 14px; height: 14px; flex: none; }
@@ -1139,6 +1397,252 @@ main {
 .footer-brand strong { font-size: 1rem; font-weight: 750; letter-spacing: -.02em; }
 .footer-brand span { font-size: .82rem; color: var(--text-3); }
 .footer-legal { font-size: .78rem; color: var(--text-3); max-width: 62ch; line-height: 1.55; }
+
+/* ── Panel de admin ─────────────────────────────────────────────────────
+   Va encima de todo, como una hoja que sube. Solo tú lo ves. */
+
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: clamp(0px, 3vw, 28px);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+@media (min-width: 700px) { .admin-overlay { align-items: center; } }
+
+.admin-panel {
+  width: min(760px, 100%);
+  max-height: min(88dvh, 900px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow-3);
+  animation: sube .45s var(--ease);
+}
+
+@media (min-width: 700px) { .admin-panel { border-radius: var(--r-xl); } }
+
+@keyframes sube { from { transform: translateY(24px); opacity: 0; } }
+
+.admin-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.admin-head h2 { font-size: 1.5rem; }
+
+.admin-close {
+  width: 36px; height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-2);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  transition: color .2s, transform .3s var(--ease-back);
+}
+
+.admin-close:hover { color: var(--text); transform: scale(1.08); }
+
+.admin-body { padding: 20px 24px 24px; overflow-y: auto; }
+
+.admin-seccion { margin-bottom: 26px; }
+.admin-seccion:last-child { margin-bottom: 0; }
+
+.admin-seccion h3 {
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.admin-seccion > p { font-size: .84rem; color: var(--text-3); margin-bottom: 12px; }
+
+/* Una fila por partido */
+.adm-partido {
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  margin-bottom: 9px;
+}
+
+.adm-partido.es-manual { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+
+.adm-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: .9rem;
+  font-weight: 650;
+}
+
+.adm-cab small { font-size: .74rem; color: var(--text-3); font-weight: 500; }
+
+.adm-tag {
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+
+.adm-fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.adm-fila + .adm-fila { margin-top: 8px; }
+
+.adm-mini {
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--text-3);
+  min-width: 62px;
+}
+
+/* Los botones de forzar resultado */
+.adm-res {
+  padding: 8px 13px;
+  border-radius: 10px;
+  font-size: .8rem;
+  font-weight: 650;
+  color: var(--text-2);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  transition: background .2s, color .2s, transform .25s var(--ease-back);
+}
+
+.adm-res:hover { color: var(--text); border-color: var(--stroke-2); }
+.adm-res:active { transform: scale(.95); }
+
+.adm-res.is-on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.adm-tv {
+  flex: 1;
+  min-width: 150px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: .82rem;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+}
+
+.adm-tv:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Gente */
+.adm-persona {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  margin-bottom: 8px;
+}
+
+.adm-persona-nombre { flex: 1; font-weight: 650; font-size: .92rem; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.adm-pago {
+  padding: 6px 13px;
+  border-radius: var(--r-full);
+  font-size: .74rem;
+  font-weight: 700;
+  border: 1px solid var(--stroke);
+  background: var(--glass);
+  color: var(--text-3);
+  transition: all .2s var(--ease);
+}
+
+.adm-pago.is-on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.adm-borrar {
+  width: 32px; height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--text-3);
+  border: 1px solid var(--stroke);
+  transition: color .2s, background .2s;
+}
+
+.adm-borrar:hover { color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); }
+.adm-borrar svg { width: 15px; height: 15px; }
+
+/* Entrar */
+.admin-login { text-align: center; padding: 18px 0; }
+.admin-login p { font-size: .9rem; color: var(--text-2); margin-bottom: 16px; }
+
+.admin-login input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--r-md);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  font-size: 1rem;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.admin-login input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+.admin-quien {
+  font-size: .78rem;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--stroke);
+}
+
+.admin-salir {
+  font-size: .76rem;
+  font-weight: 650;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-salir:hover { color: var(--live); }
+
+/* ── Dónde ver el partido ───────────────────────────────────────────── */
+
+.tv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .72rem;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.tv-chip svg { width: 12px; height: 12px; flex: none; }
 
 /* ── Avisos flotantes ───────────────────────────────────────────────── */
 

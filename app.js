@@ -27,9 +27,11 @@
     jornada: null,
     partidos: [],
     picks: {},        // { [partidoId]: 'L' | 'E' | 'V' }
-    enviado: false,
+    enviado: false,   // ya mandó su pronóstico de esta jornada
+    enviando: false,  // hay un envío en vuelo (lo único que apaga el botón)
     tabla: [],
     todos: [],
+    pagos: {},        // { [participanteId]: true } — solo lo usa el panel
     timer: null
   };
 
@@ -148,12 +150,13 @@
       return;
     }
 
-    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos()]);
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
 
     render();
     arrancarReloj();
     arrancarSondeo();
     conectarEventos();
+    initAdmin();
   }
 
   // ── Config desde la base (manda sobre config.js) ──────────────────────
@@ -209,8 +212,12 @@
     S.tabla = (data || []).sort((a, b) => b.aciertos - a.aciertos || a.nombre.localeCompare(b.nombre));
   }
 
-  // Antes del cierre esto regresa vacío a propósito: la base no entrega los
-  // pronósticos de nadie mientras la jornada siga abierta.
+  async function cargarPagos() {
+    const { data } = await S.sb.from('pagos').select('participante_id, pagado')
+      .eq('jornada_id', S.jornada.id);
+    S.pagos = Object.fromEntries((data || []).filter((r) => r.pagado).map((r) => [r.participante_id, true]));
+  }
+
   async function cargarTodos() {
     const { data } = await S.sb.from('pronosticos')
       .select('partido_id, pick, participantes(nombre)')
@@ -233,11 +240,71 @@
   function render() {
     renderCabecera();
     renderCosto();
+    renderBote();
     renderPartidos();
     renderEnVivo();
     renderTabla();
     renderTodos();
     renderProgreso();
+  }
+
+  // ── El bote y quién va ganando ───────────────────────────────────────
+  // Todo lo del dinero sale de un solo lugar para que nunca se contradiga:
+  // el banner, el hero y la tabla siempre dicen lo mismo.
+  function cuentas() {
+    const gente = S.tabla.length;
+    const bote = gente * S.cfg.cuota_bote;
+    const top = S.tabla[0]?.aciertos ?? 0;
+
+    // Solo hay "líder" si alguien ya sumó algo. Con todos en cero no va
+    // ganando nadie: sería coronar al primero de la lista por su nombre.
+    const lideres = top > 0 ? S.tabla.filter((r) => r.aciertos === top) : [];
+    const reparto = lideres.length ? Math.floor(bote / lideres.length) : 0;
+
+    return { gente, bote, top, lideres, reparto };
+  }
+
+  function renderBote() {
+    const { gente, bote, top, lideres, reparto } = cuentas();
+    const hayVivo = S.partidos.some((p) => p.estado === 'jugando');
+    const terminada = S.partidos.length > 0 && S.partidos.every((p) => p.estado === 'terminado');
+
+    $('#bote-cifra').textContent = money(bote);
+    $('#bote-pill').textContent = !gente
+      ? 'Nadie ha entrado todavía'
+      : `${gente} ${gente === 1 ? 'participante' : 'participantes'} · ${money(S.cfg.cuota_bote)} c/u`;
+
+    // Panel de "va ganando"
+    const panel = $('#lider-panel');
+    if (!lideres.length) { panel.hidden = true; return; }
+    panel.hidden = false;
+
+    const nombres = lideres.length === 1
+      ? lideres[0].nombre
+      : lideres.length === 2
+        ? `${lideres[0].nombre} y ${lideres[1].nombre}`
+        : `${lideres[0].nombre} y ${lideres.length - 1} más`;
+
+    const frase = terminada
+      ? (lideres.length === 1
+          ? `<b>${top} pts</b> · se lleva <b>${money(reparto)}</b>`
+          : `<b>${top} pts</b> · se reparten el bote: <b>${money(reparto)}</b> cada uno`)
+      : (lideres.length === 1
+          ? `<b>${top} pts</b> · si terminara hoy se lleva <b>${money(reparto)}</b>`
+          : `<b>${top} pts</b> · empatados: <b>${money(reparto)}</b> cada uno si termina así`);
+
+    panel.innerHTML = `
+      <span class="lider-corona" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8l4.2 3.4L12 4.2l4.8 7.2L21 8l-1.5 9.2h-15L3 8Z" /><path d="M4.9 17.2h14.2" />
+        </svg>
+      </span>
+      <div class="lider-copy">
+        <div class="lider-label">${terminada ? 'Ganador' : 'Va ganando'}</div>
+        <div class="lider-nombre">${esc(nombres)}</div>
+        <div class="lider-sub">${frase}</div>
+      </div>
+      ${hayVivo ? '<span class="lider-live"><span class="ev-dot"></span>En vivo</span>' : ''}`;
   }
 
   function renderCabecera() {
@@ -262,9 +329,10 @@
       txt.textContent = 'Abierta · todavía puedes entrar';
     }
 
-    // Bote: cuánta gente jugó × lo que va al bote de cada quien.
-    const gente = S.tabla.length;
-    $('#bote-amount').textContent = money(gente * S.cfg.cuota_bote);
+    // Bote: cuánta gente jugó × lo que va al bote de cada quien. Sale de
+    // cuentas(), igual que el banner grande, para que nunca se contradigan.
+    const { gente, bote } = cuentas();
+    $('#bote-amount').textContent = money(bote);
     $('#bote-people').textContent = gente === 1 ? '1 jugando' : gente + ' jugando';
     $('#bote-cuota').textContent = S.cfg.cuota_bote;
   }
@@ -330,6 +398,12 @@
         <div class="partido-meta">
           <span class="meta-date">${esc(fechaCorta(p.fecha))}</span>
           ${p.estadio ? `<span class="dot-sep">·</span><span>${esc(p.estadio)}</span>` : ''}
+          ${p.tv ? `<span class="dot-sep">·</span>
+            <span class="tv-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="6" width="18" height="12" rx="2" /><path d="M8 21h8M12 18v3" />
+              </svg>${esc(p.tv)}
+            </span>` : ''}
         </div>
 
         <div class="partido-teams">
@@ -408,10 +482,7 @@
     }
 
     const yo = slugify($('#nombre-input').value || store.get('nombre', ''));
-    const top = S.tabla[0]?.aciertos ?? 0;
-    const lideres = S.tabla.filter((r) => r.aciertos === top && top > 0);
-    const bote = S.tabla.length * S.cfg.cuota_bote;
-    const reparto = lideres.length ? Math.floor(bote / lideres.length) : 0;
+    const { top, reparto } = cuentas();
     const terminada = S.partidos.length > 0 && S.partidos.every((p) => p.estado === 'terminado');
 
     const filas = S.tabla.map((r, i) => {
@@ -437,6 +508,39 @@
       ${filas}`;
   }
 
+  // Un pick dibujado: el escudo del equipo por el que le fue, en vez de una
+  // letra suelta. "L" y "V" no le dicen nada a nadie; un escudo se reconoce
+  // de un vistazo y sin pensarlo.
+  //   · Gana local o visita → el escudo de ese equipo.
+  //   · Empate             → los dos escudos con una × en medio.
+  // Cuando el partido termina, el chip se pinta de verde o de rojo.
+  function chipPick(pick, partido) {
+    if (!partido) return `<span class="chip">${pick === 'E' ? '×' : esc(pick)}</span>`;
+
+    const res = partido.resultado;
+    const cls = !res ? '' : (res === pick ? ' is-hit' : ' is-miss');
+    const marca = !res ? '' : (res === pick ? ' · ✓' : ' · ✗');
+
+    const img = (url, alt) => url
+      ? `<img src="${esc(url)}" alt="${esc(alt)}" loading="lazy">`
+      : `<b>${esc(alt.slice(0, 3).toUpperCase())}</b>`;
+
+    if (pick === 'E') {
+      return `<span class="chip chip-empate${cls}"
+                    title="Empate: ${esc(partido.local)} vs ${esc(partido.visitante)}${marca}">
+        ${img(partido.local_logo, partido.local)}
+        <i>×</i>
+        ${img(partido.visitante_logo, partido.visitante)}
+      </span>`;
+    }
+
+    const gana = pick === 'L' ? partido.local : partido.visitante;
+    const logo = pick === 'L' ? partido.local_logo : partido.visitante_logo;
+    return `<span class="chip${cls}" title="Gana ${esc(gana)}${marca}">
+      ${img(logo, gana)}
+    </span>`;
+  }
+
   function renderTodos() {
     const cont = $('#todos-grid');
 
@@ -453,16 +557,17 @@
       return;
     }
 
-    const resPorPartido = Object.fromEntries(S.partidos.map((p) => [p.id, p.resultado]));
+    // Los picks vienen de la base sin orden garantizado. Los acomodamos en el
+    // mismo orden en que se juegan los partidos: así la fila de escudos de
+    // cada quien se lee en paralelo con la de los demás.
+    const orden = Object.fromEntries(S.partidos.map((p, i) => [p.id, i]));
+    const porId = Object.fromEntries(S.partidos.map((p) => [p.id, p]));
 
     cont.innerHTML = [...porPersona.entries()].map(([nombre, picks]) => {
-      const aciertos = picks.filter((p) => resPorPartido[p.partido_id] === p.pick).length;
+      picks.sort((a, b) => (orden[a.partido_id] ?? 99) - (orden[b.partido_id] ?? 99));
 
-      const chips = picks.map((p) => {
-        const res = resPorPartido[p.partido_id];
-        const cls = !res ? '' : (res === p.pick ? ' is-hit' : ' is-miss');
-        return `<span class="chip${cls}">${p.pick === 'E' ? 'X' : p.pick}</span>`;
-      }).join('');
+      const aciertos = picks.filter((p) => porId[p.partido_id]?.resultado === p.pick).length;
+      const chips = picks.map((p) => chipPick(p.pick, porId[p.partido_id])).join('');
 
       return `
         <article class="todo-card">
@@ -489,8 +594,18 @@
     const btn = $('#submit-btn');
     const completo = total > 0 && hechos === total;
     const conNombre = ($('#nombre-input').value || '').trim().length >= 2;
+    const listo = completo && conNombre;
 
-    btn.disabled = !completo || !conNombre;
+    // OJO: el botón NO se deshabilita por estar incompleto. Un <button disabled>
+    // no recibe clics, así que cuando decía "Escribe tu nombre" y le picabas, no
+    // pasaba absolutamente nada: parecía descompuesto. Ahora se ve apagado pero
+    // sí responde — y al tocarlo te lleva a lo que te falta (ver enviar()).
+    // Lo único que lo deshabilita de verdad es estar enviando.
+    btn.classList.toggle('is-apagado', !listo);
+    btn.setAttribute('aria-disabled', String(!listo));
+    btn.disabled = S.enviando === true;
+
+    if (S.enviando) { btn.textContent = 'Enviando…'; return; }
 
     const faltan = total - hechos;
     btn.textContent = !conNombre ? 'Escribe tu nombre'
@@ -572,7 +687,30 @@
     const btn = $('#submit-btn');
     const nombre = ($('#nombre-input').value || '').trim();
 
-    if (nombre.length < 2) return toast('Escribe tu nombre para poder enviar.', 'err');
+    // Si algo falta, el botón NO se queda mudo: te lleva ahí y te lo señala.
+    // La barra vive pegada abajo mientras votas, así que lo que falta puede
+    // estar fuera de la pantalla — decir "escribe tu nombre" sin llevarte al
+    // campo es dejar a la persona buscándolo a ciegas.
+    if (nombre.length < 2) {
+      const input = $('#nombre-input');
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => input.focus({ preventScroll: true }), 350);
+      toast('Escribe tu nombre aquí arriba para poder enviar.', 'err');
+      return;
+    }
+
+    const falta = S.partidos.find((p) => !S.picks[p.id]);
+    if (falta) {
+      const card = document.querySelector(`.partido[data-id="${falta.id}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Un parpadeo para que el ojo caiga solo en la tarjeta correcta.
+        card.classList.add('is-buscado');
+        setTimeout(() => card.classList.remove('is-buscado'), 2000);
+      }
+      toast(`Te falta pronosticar: ${falta.local} vs ${falta.visitante}.`, 'err');
+      return;
+    }
 
     // Puede haber cerrado mientras la persona llenaba la quiniela.
     if (estaCerrada()) {
@@ -580,8 +718,8 @@
       return render();
     }
 
-    btn.disabled = true;
-    btn.textContent = 'Enviando…';
+    S.enviando = true;
+    renderProgreso();
 
     try {
       const participanteId = await obtenerParticipante(nombre);
@@ -598,6 +736,7 @@
       if (error) {
         // 23505 = choca con el índice único: ya había pronosticado.
         if (error.code === '23505') {
+          S.enviando = false;
           S.enviado = true;
           store.set('enviado-' + S.jornada.id, true);
           toast('Ya habías enviado tu pronóstico de esta jornada.', 'err');
@@ -605,12 +744,15 @@
         }
         // 42501 = el RLS lo rechazó: la jornada ya está cerrada del lado servidor.
         if (error.code === '42501') {
+          S.enviando = false;
           toast('La jornada ya cerró. El servidor no aceptó el pronóstico.', 'err');
           await cargarJornada();
           return render();
         }
         throw error;
       }
+
+      S.enviando = false;
 
       S.enviado = true;
       store.set('enviado-' + S.jornada.id, true);
@@ -624,8 +766,10 @@
 
     } catch (err) {
       console.error(err);
+      // Pase lo que pase, el botón vuelve a la vida: dejarlo en "Enviando…"
+      // para siempre sería peor que el error mismo.
+      S.enviando = false;
       toast('No se pudo enviar. Revisa tu internet y vuelve a intentar.', 'err');
-      btn.disabled = false;
       renderProgreso();
     }
   }
@@ -703,6 +847,7 @@
       try {
         await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos()]);
         renderCabecera();
+        renderBote();
         renderEnVivo();
         renderTabla();
         renderTodos();
@@ -714,7 +859,7 @@
       if (document.hidden) return;
       try {
         await Promise.all([cargarPartidos(), cargarTabla()]);
-        renderCabecera(); renderEnVivo(); renderTabla();
+        renderCabecera(); renderBote(); renderEnVivo(); renderTabla();
       } catch (e) { }
     });
   }
@@ -760,6 +905,278 @@
   function pintarThemeColor(t) {
     const m = document.querySelector('meta[name="theme-color"]');
     if (m) m.setAttribute('content', t === 'dark' ? '#08080a' : '#f2f2f5');
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  PANEL DE ADMIN
+  // ═════════════════════════════════════════════════════════════════════
+  //
+  //  Se abre con  #admin  al final de la URL. Que se abra no da permisos:
+  //  el candado está en la base (ver schema-admin.sql). Aunque alguien más
+  //  llegue a esta pantalla, cada escritura la rechaza el servidor. Esto de
+  //  aquí solo evita que el panel le estorbe a la vista de los jugadores.
+  //
+  //  Usa la MISMA llave anon que todos: la service_role nunca toca el
+  //  navegador. Lo que te identifica es tu correo, firmado por Supabase.
+
+  const CANALES = ['Canal 5', 'Azteca 7', 'TUDN', 'ViX', 'Fox Sports', 'ESPN',
+    'Amazon Prime', 'Caliente TV', 'Claro Sports'];
+
+  const ICO_BOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/></svg>';
+
+  async function initAdmin() {
+    const overlay = $('#admin-overlay');
+    if (!overlay) return;
+
+    const abrir = () => { overlay.hidden = false; pintarAdmin(); };
+    const cerrar = () => {
+      overlay.hidden = true;
+      if (location.hash === '#admin') history.replaceState(null, '', location.pathname + location.search);
+    };
+
+    $('#admin-close').addEventListener('click', cerrar);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) cerrar(); });
+    addEventListener('hashchange', () => { if (location.hash === '#admin') abrir(); });
+
+    // El link mágico regresa con la sesión en la URL; supabase-js la levanta
+    // solo. Volvemos a pintar cuando eso pase.
+    S.sb.auth.onAuthStateChange(() => { if (!overlay.hidden) pintarAdmin(); });
+
+    if (location.hash === '#admin') abrir();
+  }
+
+  async function pintarAdmin() {
+    const body = $('#admin-body');
+    body.innerHTML = '<div class="empty">Cargando…</div>';
+
+    const { data: { session } } = await S.sb.auth.getSession();
+
+    if (!session) return pintarLogin(body);
+
+    // ¿Este correo manda? Lo decide la base, no nosotros.
+    const { data: esAdmin, error } = await S.sb.rpc('es_admin');
+
+    if (error) {
+      body.innerHTML = `<div class="alert is-err">No se pudo comprobar el permiso.
+        ¿Ya corriste <code>schema-admin.sql</code>? (${esc(error.message)})</div>`;
+      return;
+    }
+
+    if (!esAdmin) {
+      body.innerHTML = `
+        <div class="alert is-err"><b>Esta cuenta no es de administrador.</b>
+          Entraste como ${esc(session.user.email)}, pero ese correo no está en la lista.</div>
+        <div class="admin-quien">
+          <span>Sesión: ${esc(session.user.email)}</span>
+          <button class="admin-salir" id="admin-salir" type="button">Salir</button>
+        </div>`;
+      $('#admin-salir').addEventListener('click', salirAdmin);
+      return;
+    }
+
+    pintarHerramientas(body, session);
+  }
+
+  function pintarLogin(body) {
+    body.innerHTML = `
+      <div class="admin-login">
+        <p>Escribe tu correo y te mando un link para entrar.<br>
+          <b>No hay contraseña</b> que recordar ni que se pueda robar.</p>
+        <input id="admin-email" type="email" placeholder="tu@correo.com"
+               autocomplete="email" spellcheck="false">
+        <button class="btn btn-primary btn-lg" id="admin-enviar" type="button"
+                style="width:100%">Mándame el link</button>
+      </div>`;
+
+    const input = $('#admin-email');
+    const btn = $('#admin-enviar');
+    input.value = store.get('admin-email', '');
+
+    const enviar = async () => {
+      const email = (input.value || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Ese correo no se ve bien.', 'err');
+
+      btn.disabled = true; btn.textContent = 'Enviando…';
+      const { error } = await S.sb.auth.signInWithOtp({
+        email, options: { emailRedirectTo: location.origin + location.pathname + '#admin' }
+      });
+
+      if (error) {
+        btn.disabled = false; btn.textContent = 'Mándame el link';
+        return toast('No se pudo enviar: ' + error.message, 'err');
+      }
+
+      store.set('admin-email', email);
+      body.innerHTML = `<div class="alert is-ok">
+        <b>Listo, revisa tu correo.</b> Te llegó un link a <b>${esc(email)}</b>.
+        Ábrelo desde este mismo dispositivo y regresas ya adentro.</div>`;
+    };
+
+    btn.addEventListener('click', enviar);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(); });
+  }
+
+  function pintarHerramientas(body, session) {
+    const partidos = S.partidos;
+
+    const opcionesTv = (actual) => CANALES
+      .map((c) => `<option value="${esc(c)}"${(actual || '') === c ? ' selected' : ''}>${esc(c)}</option>`)
+      .join('');
+
+    const filaPartido = (p) => {
+      const btnRes = (val, txt) => `
+        <button class="adm-res${p.resultado === val ? ' is-on' : ''}" type="button"
+                data-res="${val}" data-id="${p.id}">${esc(txt)}</button>`;
+
+      return `
+        <div class="adm-partido${p.manual ? ' es-manual' : ''}" data-id="${p.id}">
+          <div class="adm-cab">
+            <span>${esc(p.local)} vs ${esc(p.visitante)}</span>
+            <small>${esc(fechaCorta(p.fecha))}</small>
+            ${p.estado !== 'programado'
+              ? `<small>· ${p.goles_local ?? 0}-${p.goles_visitante ?? 0} ${esc(p.minuto || '')}</small>` : ''}
+            ${p.manual ? '<span class="adm-tag">a mano</span>' : ''}
+          </div>
+
+          <div class="adm-fila">
+            <span class="adm-mini">Resultado</span>
+            ${btnRes('L', 'Gana ' + (p.local_abbr || p.local))}
+            ${btnRes('E', 'Empate')}
+            ${btnRes('V', 'Gana ' + (p.visitante_abbr || p.visitante))}
+            ${p.manual ? `<button class="adm-res" type="button" data-auto="${p.id}">Volver a automático</button>` : ''}
+          </div>
+
+          <div class="adm-fila">
+            <span class="adm-mini">Dónde ver</span>
+            <select class="adm-tv" data-tv="${p.id}">
+              <option value="">— sin definir —</option>
+              ${opcionesTv(p.tv)}
+            </select>
+          </div>
+        </div>`;
+    };
+
+    const filaPersona = (r) => `
+      <div class="adm-persona" data-persona="${r.participante_id}">
+        <span class="avatar">${esc(iniciales(r.nombre))}</span>
+        <span class="adm-persona-nombre">${esc(r.nombre)}</span>
+        <button class="adm-pago${S.pagos[r.participante_id] ? ' is-on' : ''}" type="button"
+                data-pago="${r.participante_id}">${S.pagos[r.participante_id] ? '✓ Pagó' : 'Sin pagar'}</button>
+        <button class="adm-borrar" type="button" data-borrar="${r.participante_id}"
+                data-nombre="${esc(r.nombre)}" title="Borrar a esta persona">${ICO_BOTE}</button>
+      </div>`;
+
+    body.innerHTML = `
+      <div class="admin-seccion">
+        <h3>Resultados</h3>
+        <p>Los marcadores se cargan solos desde ESPN. Toca un botón <b>solo si se equivocó</b>:
+          a partir de ahí ese partido queda en tus manos y el sistema ya no lo vuelve a tocar.
+          Aquí también pones dónde se transmite cada uno.</p>
+        ${partidos.map(filaPartido).join('') || '<div class="empty">Sin partidos.</div>'}
+      </div>
+
+      <div class="admin-seccion">
+        <h3>Quién pagó · ${S.tabla.length} ${S.tabla.length === 1 ? 'persona' : 'personas'}</h3>
+        <p>Marca a quien ya te haya pagado sus ${money(S.cfg.cuota_bote + S.cfg.cuota_manejo)}.
+          El bote de la jornada va en <b>${money(S.tabla.length * S.cfg.cuota_bote)}</b>.</p>
+        ${S.tabla.map(filaPersona).join('') || '<div class="empty">Nadie ha jugado todavía.</div>'}
+      </div>
+
+      <div class="admin-quien">
+        <span>Entraste como <b>${esc(session.user.email)}</b></span>
+        <button class="admin-salir" id="admin-salir" type="button">Salir</button>
+      </div>`;
+
+    conectarAdmin(body);
+  }
+
+  function conectarAdmin(body) {
+    body.addEventListener('click', async (e) => {
+      const res = e.target.closest('[data-res]');
+      const auto = e.target.closest('[data-auto]');
+      const pago = e.target.closest('[data-pago]');
+      const borrar = e.target.closest('[data-borrar]');
+
+      // Forzar un resultado. `manual: true` es lo que hace que el cron
+      // respete tu palabra y no te lo sobreescriba en la siguiente corrida.
+      if (res) {
+        const id = res.dataset.id;
+        const valor = S.partidos.find((p) => String(p.id) === id)?.resultado === res.dataset.res
+          ? null : res.dataset.res;   // volver a tocarlo lo quita
+        await guardarAdmin(
+          S.sb.from('partidos').update({ resultado: valor, manual: true }).eq('id', id),
+          valor ? 'Resultado puesto a mano.' : 'Resultado borrado.');
+        return;
+      }
+
+      // Devolverle el partido al automático.
+      if (auto) {
+        await guardarAdmin(
+          S.sb.from('partidos').update({ manual: false }).eq('id', auto.dataset.auto),
+          'Listo: ese partido vuelve a jalar solo de ESPN.');
+        return;
+      }
+
+      if (pago) {
+        const id = Number(pago.dataset.pago);
+        const nuevo = !S.pagos[id];
+        await guardarAdmin(
+          S.sb.from('pagos').upsert({
+            jornada_id: S.jornada.id, participante_id: id, pagado: nuevo,
+            marcado_at: new Date().toISOString()
+          }, { onConflict: 'jornada_id,participante_id' }),
+          nuevo ? 'Marcado como pagado.' : 'Marcado como no pagado.');
+        return;
+      }
+
+      // Borrar es serio: sus pronósticos se van detrás. Preguntamos antes.
+      if (borrar) {
+        const nombre = borrar.dataset.nombre;
+        if (!confirm(`¿Borrar a ${nombre}?\n\nSe van también sus 9 pronósticos y no hay forma de recuperarlos.`)) return;
+        await guardarAdmin(
+          S.sb.from('participantes').delete().eq('id', borrar.dataset.borrar),
+          `${nombre} y sus pronósticos, fuera.`);
+        return;
+      }
+    });
+
+    body.addEventListener('change', async (e) => {
+      const tv = e.target.closest('[data-tv]');
+      if (!tv) return;
+      await guardarAdmin(
+        S.sb.from('partidos').update({ tv: tv.value || null }).eq('id', tv.dataset.tv),
+        tv.value ? `Se transmite por ${tv.value}.` : 'Canal quitado.');
+    });
+
+    const salir = $('#admin-salir');
+    if (salir) salir.addEventListener('click', salirAdmin);
+  }
+
+  // Guarda, avisa, y vuelve a leer todo para que el panel y la página de
+  // abajo queden diciendo lo mismo al instante.
+  async function guardarAdmin(consulta, exito) {
+    const { error } = await consulta;
+
+    if (error) {
+      // 42501 = el RLS dijo que no. Casi siempre: falta correr
+      // schema-admin.sql, o el correo no está en la lista de admins.
+      toast(error.code === '42501'
+        ? 'La base rechazó el cambio: tu correo no tiene permiso.'
+        : 'No se pudo guardar: ' + error.message, 'err');
+      return;
+    }
+
+    toast(exito, 'ok');
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
+    render();
+    pintarAdmin();
+  }
+
+  async function salirAdmin() {
+    await S.sb.auth.signOut();
+    toast('Sesión cerrada.', 'ok');
+    pintarAdmin();
   }
 
   // ── Arranca ──────────────────────────────────────────────────────────

@@ -228,6 +228,53 @@
         <h2 class="display">Tabla de la jornada</h2>
         <p>Un punto por acierto. Si varios empatan en aciertos, el bote se reparte entre ellos.</p>
       </div>
+
+      <!-- El bote, en grande. Es la razón por la que todos están aquí. -->
+      <div class="bote-banner" id="bote-banner">
+        <div class="bote-chispas" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="bote-banner-copy">
+          <span class="bote-banner-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M14.6 9c-.5-1-1.5-1.6-2.6-1.6-1.5 0-2.6.9-2.6 2.1s1.1 1.6 2.6 2 2.6.9 2.6 2.1-1.1 2.1-2.6 2.1c-1.1 0-2.1-.6-2.6-1.6M12 6v12" />
+            </svg>
+            Bote de la jornada
+          </span>
+
+          <strong class="bote-cifra" id="bote-cifra">$0</strong>
+
+          <span class="bote-pill" id="bote-pill">Nadie ha entrado todavía</span>
+        </div>
+
+        <!-- La alcancía. Puro adorno, pero es la que le pone la emoción. -->
+        <div class="bote-art" aria-hidden="true">
+          <svg viewBox="0 0 120 100" fill="none">
+            <ellipse cx="60" cy="92" rx="38" ry="5" fill="currentColor" opacity=".15" />
+            <path class="cerdo" d="M30 78V64M50 80V66M72 80V66M90 76V62" stroke="currentColor" stroke-width="7" stroke-linecap="round" />
+            <path class="cerdo" d="M22 48c0-16 17-27 38-27s38 11 38 27c0 8-4 15-11 20-3 2-5 5-5 9v3a3 3 0 0 1-3 3H41a3 3 0 0 1-3-3v-3c0-4-2-7-5-9-7-5-11-12-11-20Z"
+                  fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="3.4" />
+            <path class="cerdo" d="M96 45c5-3 9-2 11 1 2 4 0 8-5 10" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+            <ellipse class="cerdo" cx="24" cy="44" rx="9" ry="7" fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="3" />
+            <circle class="cerdo" cx="21" cy="43" r="1.9" fill="currentColor" />
+            <circle class="cerdo" cx="27" cy="43" r="1.9" fill="currentColor" />
+            <circle class="cerdo" cx="42" cy="40" r="2.6" fill="currentColor" />
+            <path class="cerdo" d="M63 30h18" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" />
+            <!-- El billete que va cayendo -->
+            <g class="billete">
+              <rect x="60" y="4" width="26" height="15" rx="2.5" transform="rotate(-11 73 11)"
+                    fill="currentColor" fill-opacity=".3" stroke="currentColor" stroke-width="2.6" />
+              <circle cx="73" cy="11" r="3.4" fill="currentColor" />
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Quién va ganando ahorita mismo -->
+      <div class="lider-panel" id="lider-panel" hidden></div>
+
       <div class="tabla-wrap" id="tabla-wrap">
         <div class="empty">La tabla aparece cuando arranquen los partidos.</div>
       </div>
@@ -316,6 +363,26 @@
       </p>
     </div>
   </footer>
+
+  <!-- ═══════════════ PANEL DE ADMIN ═══════════════
+       Solo aparece al abrir la página con #admin al final de la URL, y solo
+       hace algo si tu correo está en la lista de admins. Que se "vea" no
+       sirve de nada: cada escritura la autoriza la base, no esta pantalla. -->
+  <div class="admin-overlay" id="admin-overlay" hidden>
+    <div class="admin-panel glass" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+      <div class="admin-head">
+        <div>
+          <span class="eyebrow">Panel privado</span>
+          <h2 class="display" id="admin-title">Administración</h2>
+        </div>
+        <button class="admin-close" id="admin-close" type="button" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <div class="admin-body" id="admin-body">
+        <div class="empty">Cargando…</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Avisos flotantes -->
   <div class="toast-wrap" id="toast-wrap" aria-live="polite"></div>
