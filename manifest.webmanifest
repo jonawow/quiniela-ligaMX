@@ -1,0 +1,48 @@
+{
+  "name": "Quiniela MX · Liga BBVA MX",
+  "short_name": "Quiniela MX",
+  "description": "La quiniela de la Liga MX por jornada. Pronostica en 3 toques, marcadores en vivo y tabla al instante.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f2f2f5",
+  "theme_color": "#f2f2f5",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "categories": ["sports", "entertainment"],
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Hacer mi pronóstico",
+      "short_name": "Pronosticar",
+      "url": "./index.html#jugar",
+      "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Marcadores en vivo",
+      "short_name": "En vivo",
+      "url": "./index.html#envivo",
+      "icons": [{ "src": "./icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

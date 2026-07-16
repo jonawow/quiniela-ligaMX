@@ -121,9 +121,12 @@
   async function boot() {
     initTema();
 
-    // Va aquí arriba, no al final: el menú y el tema tienen que funcionar
-    // aunque la base de datos no responda y nos salgamos antes de tiempo.
+    // Va aquí arriba, no al final: el menú, el tema y lo de la app tienen
+    // que funcionar aunque la base de datos no responda y nos salgamos
+    // antes de tiempo. Sobre todo el aviso de versión nueva: si la app se
+    // rompiera por un bug, ese aviso es justo el que trae el arreglo.
     initFlechasMenu();
+    initPWA();
     $('#theme-btn').addEventListener('click', toggleTema);
 
     if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.startsWith('PEGA_AQUI')) {
@@ -919,8 +922,12 @@
   //  Usa la MISMA llave anon que todos: la service_role nunca toca el
   //  navegador. Lo que te identifica es tu correo, firmado por Supabase.
 
-  const CANALES = ['Canal 5', 'Azteca 7', 'TUDN', 'ViX', 'Fox Sports', 'ESPN',
-    'Amazon Prime', 'Caliente TV', 'Claro Sports'];
+  // Sugerencias, no camisa de fuerza: casi ningún partido va por un solo
+  // canal ("Canal 5, TUDN, ViX" es lo normal), así que el campo es de texto
+  // libre y esta lista solo autocompleta.
+  const CANALES = ['FOX Sports', 'Canal 5', 'Azteca 7', 'TUDN', 'ViX', 'ESPN',
+    'Disney+', 'Prime Video', 'Caliente TV', 'Claro Sports',
+    'Canal 5, TUDN, ViX', 'Azteca 7, FOX Sports', 'ESPN, Disney+, ViX'];
 
   const ICO_BOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/></svg>';
 
@@ -1020,9 +1027,7 @@
   function pintarHerramientas(body, session) {
     const partidos = S.partidos;
 
-    const opcionesTv = (actual) => CANALES
-      .map((c) => `<option value="${esc(c)}"${(actual || '') === c ? ' selected' : ''}>${esc(c)}</option>`)
-      .join('');
+    const sugerenciasTv = CANALES.map((c) => `<option value="${esc(c)}"></option>`).join('');
 
     const filaPartido = (p) => {
       const btnRes = (val, txt) => `
@@ -1049,10 +1054,9 @@
 
           <div class="adm-fila">
             <span class="adm-mini">Dónde ver</span>
-            <select class="adm-tv" data-tv="${p.id}">
-              <option value="">— sin definir —</option>
-              ${opcionesTv(p.tv)}
-            </select>
+            <input class="adm-tv" data-tv="${p.id}" list="canales-lista" type="text"
+                   value="${esc(p.tv || '')}" placeholder="Ej. Canal 5, TUDN, ViX"
+                   spellcheck="false">
           </div>
         </div>`;
     };
@@ -1068,6 +1072,8 @@
       </div>`;
 
     body.innerHTML = `
+      <datalist id="canales-lista">${sugerenciasTv}</datalist>
+
       <div class="admin-seccion">
         <h3>Resultados</h3>
         <p>Los marcadores se cargan solos desde ESPN. Toca un botón <b>solo si se equivocó</b>:
@@ -1177,6 +1183,95 @@
     await S.sb.auth.signOut();
     toast('Sesión cerrada.', 'ok');
     pintarAdmin();
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  APP INSTALABLE Y AVISO DE VERSIÓN NUEVA
+  // ═════════════════════════════════════════════════════════════════════
+
+  function initPWA() {
+    // ── Instalar ──────────────────────────────────────────────────────
+    // El botón NO se enseña siempre: solo cuando el navegador nos avisa que
+    // de verdad se puede instalar. Un botón "Instalar" que no instala nada
+    // (iPhone, o ya instalada) es peor que no tenerlo.
+    let promesaInstalar = null;
+    const btnInst = $('#btn-instalar');
+
+    addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      promesaInstalar = e;
+      if (btnInst) btnInst.hidden = false;
+    });
+
+    if (btnInst) {
+      btnInst.addEventListener('click', async () => {
+        if (!promesaInstalar) return;
+        promesaInstalar.prompt();
+        const { outcome } = await promesaInstalar.userChoice;
+        promesaInstalar = null;
+        btnInst.hidden = true;
+        if (outcome === 'accepted') toast('¡Listo! Ya la tienes como app 📲', 'ok');
+      });
+    }
+
+    addEventListener('appinstalled', () => {
+      if (btnInst) btnInst.hidden = true;
+      toast('Instalada. Ábrela desde tu pantalla de inicio.', 'ok');
+    });
+
+    // ── Service worker ────────────────────────────────────────────────
+    if (!('serviceWorker' in navigator)) return;
+
+    // Solo sirve en https (o en localhost mientras desarrollamos). Abrir el
+    // archivo directo con doble clic (file://) no cuenta.
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      // ¿Ya hay uno nuevo esperando de una visita anterior?
+      if (reg.waiting && navigator.serviceWorker.controller) avisarVersion(reg.waiting);
+
+      reg.addEventListener('updatefound', () => {
+        const nuevo = reg.installing;
+        if (!nuevo) return;
+        nuevo.addEventListener('statechange', () => {
+          // "installed" + ya había un controlador = es una ACTUALIZACIÓN,
+          // no la primera visita. En la primera no hay nada que avisar.
+          if (nuevo.state === 'installed' && navigator.serviceWorker.controller) {
+            avisarVersion(nuevo);
+          }
+        });
+      });
+
+      // Buscamos cambios al volver a la pestaña. La gente deja la quiniela
+      // abierta horas mientras se juega; sin esto no se enterarían nunca.
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) reg.update().catch(() => {});
+      });
+      setInterval(() => reg.update().catch(() => {}), 15 * 60 * 1000);
+    }).catch(() => { /* si no se puede registrar, la app funciona igual */ });
+
+    // Cuando el service worker nuevo toma el mando, recargamos una sola vez.
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (recargando) return;
+      recargando = true;
+      location.reload();
+    });
+  }
+
+  function avisarVersion(esperando) {
+    const bar = $('#update-bar');
+    if (!bar || !bar.hidden) return;
+    bar.hidden = false;
+
+    $('#update-btn').addEventListener('click', () => {
+      $('#update-btn').textContent = 'Actualizando…';
+      // El service worker nuevo estaba esperando a propósito para no
+      // interrumpir a nadie a medio pronosticar. Aquí le damos permiso.
+      esperando.postMessage('ACTUALIZAR_YA');
+    }, { once: true });
+
+    $('#update-luego').addEventListener('click', () => { bar.hidden = true; }, { once: true });
   }
 
   // ── Arranca ──────────────────────────────────────────────────────────

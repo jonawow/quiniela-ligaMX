@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  Lo que NUNCA debe subir a GitHub
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── LA LÍNEA MÁS IMPORTANTE ───────────────────────────────────────────
+# cron.sql lleva pegada la llave service_role: la llave MAESTRA de la base.
+# Quien la tenga puede borrar la quiniela entera. En un repo público quedaría
+# indexada, y hay bots que barren GitHub buscando justo esto.
+#
+# Ojo: git NO ignora un archivo que YA está siendo rastreado. Si alguna vez
+# lo subiste, esta línea llega tarde: hay que sacarlo del historial y rotar
+# la llave en Supabase.
+cron.sql
+
+# Por si algún día haces copias con la llave adentro
+cron*.local.sql
+*.secret.sql
+.env
+.env.*
+
+# ── Archivos de prueba ────────────────────────────────────────────────
+# Abren la página sin base de datos, con la Jornada 1 quemada a mano.
+# Útiles en tu compu; publicados serían un desastre: mostrarían partidos y
+# marcadores falsos como si fueran la quiniela de verdad.
+_test.html
+_mock.js
+
+# ── Herramientas locales ──────────────────────────────────────────────
+.claude/
+.vscode/
+.idea/
+
+# ── Basura del sistema ────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+*~
+*.tmp
+
+# ═══════════════════════════════════════════════════════════════════════
+#  TODO LO DEMÁS SÍ SUBE, y está bien que suba:
+#
+#    index.html · styles.css · app.js · config.js   → la página
+#    sw.js · manifest.webmanifest · icon-*.png      → la app instalable
+#    schema.sql · schema-admin.sql · tv-jornada1.sql → respaldo de la base
+#    supabase/functions/sync/index.ts               → el cron
+#    README.md                                      → el instructivo
+#
+#  config.js lleva la llave anon, y eso NO es un descuido: está hecha para
+#  vivir en el navegador de cada jugador. Lo que protege la quiniela son las
+#  reglas RLS, no el secreto de esa llave.
+# ═══════════════════════════════════════════════════════════════════════

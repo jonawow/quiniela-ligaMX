@@ -1644,6 +1644,93 @@ main {
 
 .tv-chip svg { width: 12px; height: 12px; flex: none; }
 
+/* ── "Hay una versión nueva" ────────────────────────────────────────────
+   Sale arriba, no abajo: abajo vive la barra de enviar el pronóstico y no
+   se deben pelear. Y es un aviso, no una alarma — se puede ignorar. */
+
+.update-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  width: min(460px, calc(100vw - 24px));
+  padding: 12px 12px 12px 16px;
+  border-radius: var(--r-lg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--glass-2);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: var(--shadow-3);
+  animation: baja .5s var(--ease-back);
+}
+
+@keyframes baja { from { opacity: 0; transform: translate(-50%, -18px); } }
+
+.update-ico {
+  width: 32px; height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 7px;
+  border-radius: 10px;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.update-copy { flex: 1; min-width: 0; line-height: 1.25; }
+.update-copy strong { display: block; font-size: .9rem; font-weight: 700; letter-spacing: -.01em; }
+.update-copy small { font-size: .74rem; color: var(--text-3); }
+
+.update-bar .btn { padding: 9px 16px; font-size: .84rem; flex: none; }
+
+.update-luego {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--text-3);
+  transition: color .2s;
+}
+
+.update-luego:hover { color: var(--text); }
+
+/* ── Instalar la app ────────────────────────────────────────────────── */
+
+.btn-instalar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--r-full);
+  font-size: .82rem;
+  font-weight: 650;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  transition: transform .3s var(--ease-back), background .2s;
+}
+
+.btn-instalar svg { width: 15px; height: 15px; flex: none; }
+.btn-instalar:hover { transform: translateY(-2px); }
+.btn-instalar:active { transform: scale(.95); }
+
+@media (max-width: 560px) {
+  .btn-instalar span { display: none; }
+  .btn-instalar { padding: 10px; border-radius: 50%; }
+}
+
+/* En la app ya instalada no tiene caso invitar a instalarla */
+@media (display-mode: standalone) {
+  .btn-instalar { display: none !important; }
+}
+
 /* ── Avisos flotantes ───────────────────────────────────────────────── */
 
 .toast-wrap {

@@ -13,6 +13,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 
+  <!-- App instalable (celular y computadora) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Quiniela MX">
+
   <!-- La página nace en claro (ver data-theme arriba). Esto corre ANTES de
        pintar: si alguien ya eligió oscuro, se lo ponemos de una vez y así no
        ve un flashazo blanco antes de que cargue app.js. -->
@@ -73,6 +81,14 @@
                stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 5 7 7-7 7" /></svg>
         </button>
       </div>
+
+      <!-- Solo se asoma si el navegador de verdad puede instalarla -->
+      <button class="btn-instalar" id="btn-instalar" type="button" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+        </svg>
+        <span>Instalar</span>
+      </button>
 
       <button class="theme-btn" id="theme-btn" type="button" aria-label="Cambiar tema">
         <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
@@ -382,6 +398,21 @@
         <div class="empty">Cargando…</div>
       </div>
     </div>
+  </div>
+
+  <!-- Aviso de versión nueva. Aparece solo cuando de verdad hay una. -->
+  <div class="update-bar" id="update-bar" hidden role="status">
+    <span class="update-ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3a9 9 0 1 1-8.5 6.1" /><path d="M3 4v5h5" />
+      </svg>
+    </span>
+    <div class="update-copy">
+      <strong>Hay una versión nueva</strong>
+      <small>Actualiza para ver los últimos cambios</small>
+    </div>
+    <button class="btn btn-primary" id="update-btn" type="button">Actualizar</button>
+    <button class="update-luego" id="update-luego" type="button" aria-label="Ahora no">&times;</button>
   </div>
 
   <!-- Avisos flotantes -->
