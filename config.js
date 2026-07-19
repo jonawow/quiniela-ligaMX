@@ -27,7 +27,7 @@ window.QMX_CONFIG = {
   // allá, la página se entera sola sin tocar código. Esto es el respaldo
   // por si la base no responde.
   CUOTA_BOTE:   50,   // lo que va al bote, por persona por jornada
-  CUOTA_MANEJO: 5,    // comisión por manejo de la quiniela
+  CUOTA_MANEJO: 2,    // comisión por manejo de la quiniela
 
   // ── Identidad ────────────────────────────────────────────────────────
   NOMBRE: 'Quiniela MX',

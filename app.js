@@ -32,8 +32,14 @@
     tabla: [],
     todos: [],
     pagos: {},        // { [participanteId]: true } — solo lo usa el panel
+    historial: [],    // ganadores de jornadas ya finalizadas, reciente primero
     timer: null
   };
+
+  // Cuánto antes del arranque de la próxima jornada se retira el popup del
+  // ganador anterior. El usuario lo pidió así: que la felicitación viva en el
+  // hueco entre jornadas, pero se quite un rato antes de que empiece la que sigue.
+  const VENTANA_POPUP_MS = 3 * 60 * 60 * 1000;   // 3 horas
 
   // ── Atajos ───────────────────────────────────────────────────────────
   const $ = (s) => document.querySelector(s);
@@ -153,13 +159,15 @@
       return;
     }
 
-    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos(), cargarHistorial()]);
 
     render();
     arrancarReloj();
     arrancarSondeo();
     conectarEventos();
     initAdmin();
+    initGanadorModal();
+    revisarGanadorPopup();
   }
 
   // ── Config desde la base (manda sobre config.js) ──────────────────────
@@ -228,6 +236,32 @@
     S.todos = data || [];
   }
 
+  // ── Historial: ganadores de las jornadas ya finalizadas ────────────────
+  // Una sola pasada: traemos las jornadas finalizadas y, de un jalón, la tabla
+  // de aciertos de todas ellas. El ganador y el reparto se calculan aquí con
+  // resumenGanador(), igual que la jornada activa. Reciente primero.
+  async function cargarHistorial() {
+    const { data: js } = await S.sb.from('jornadas').select('*')
+      .eq('estado', 'finalizada').order('numero', { ascending: false });
+
+    const finalizadas = js || [];
+    if (!finalizadas.length) { S.historial = []; return; }
+
+    const ids = finalizadas.map((j) => j.id);
+    const { data: filas } = await S.sb.from('v_tabla').select('*').in('jornada_id', ids);
+
+    const porJornada = new Map();
+    (filas || []).forEach((r) => {
+      if (!porJornada.has(r.jornada_id)) porJornada.set(r.jornada_id, []);
+      porJornada.get(r.jornada_id).push(r);
+    });
+
+    S.historial = finalizadas.map((j) => ({
+      jornada: j,
+      ...resumenGanador(porJornada.get(j.id) || [])
+    }));
+  }
+
   // ── ¿Ya cerró? ───────────────────────────────────────────────────────
   function estaCerrada() {
     if (!S.jornada) return true;
@@ -248,23 +282,32 @@
     renderEnVivo();
     renderTabla();
     renderTodos();
+    renderHistorial();
     renderProgreso();
   }
 
   // ── El bote y quién va ganando ───────────────────────────────────────
   // Todo lo del dinero sale de un solo lugar para que nunca se contradiga:
   // el banner, el hero y la tabla siempre dicen lo mismo.
-  function cuentas() {
-    const gente = S.tabla.length;
+  function cuentas() { return resumenGanador(S.tabla); }
+
+  // Las cuentas de UNA jornada a partir de su tabla (filas de v_tabla). Lo usan
+  // por igual el bote de la jornada activa y el historial de jornadas pasadas,
+  // así el ganador y el reparto se calculan con la misma regla en todos lados.
+  function resumenGanador(tabla) {
+    const filas = (tabla || []).slice().sort((a, b) =>
+      b.aciertos - a.aciertos || String(a.nombre).localeCompare(b.nombre));
+    const gente = filas.length;
     const bote = gente * S.cfg.cuota_bote;
-    const top = S.tabla[0]?.aciertos ?? 0;
+    const top = filas[0]?.aciertos ?? 0;
 
     // Solo hay "líder" si alguien ya sumó algo. Con todos en cero no va
     // ganando nadie: sería coronar al primero de la lista por su nombre.
-    const lideres = top > 0 ? S.tabla.filter((r) => r.aciertos === top) : [];
+    const lideres = top > 0 ? filas.filter((r) => r.aciertos === top) : [];
     const reparto = lideres.length ? Math.floor(bote / lideres.length) : 0;
+    const jugados = filas[0]?.pronosticados ?? 0;   // partidos que pronosticó (9)
 
-    return { gente, bote, top, lideres, reparto };
+    return { gente, bote, top, lideres, reparto, jugados };
   }
 
   function renderBote() {
@@ -345,6 +388,15 @@
     $('#costo-total').textContent = money(b + m);
     $('#costo-bote').textContent = b;
     $('#costo-manejo').textContent = m;
+
+    // La sección "¿Por qué?" repite estas cifras en su texto. Las llenamos
+    // aquí para que sigan a la config y nunca digan un número distinto al
+    // del recuadro de arriba, incluso si mañana cambia la comisión.
+    const set = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
+    set('#porque-manejo', m);
+    set('#porque-manejo-2', m);
+    set('#porque-bote', b);
+    set('#porque-total', b + m);
   }
 
   function renderPartidos() {
@@ -586,6 +638,59 @@
     }).join('');
   }
 
+  // ── Salón de la fama: ganadores de jornadas pasadas ──────────────────
+  function nombresLideres(lideres) {
+    if (!lideres.length) return '';
+    if (lideres.length === 1) return lideres[0].nombre;
+    if (lideres.length === 2) return `${lideres[0].nombre} y ${lideres[1].nombre}`;
+    return `${lideres[0].nombre} y ${lideres.length - 1} más`;
+  }
+
+  function renderHistorial() {
+    const cont = $('#ganadores-list');
+    if (!cont) return;
+
+    if (!S.historial.length) {
+      cont.innerHTML = '<div class="empty">Todavía no termina ninguna jornada. ' +
+        'Aquí van a quedar guardados los ganadores.</div>';
+      return;
+    }
+
+    cont.innerHTML = S.historial.map((it) => {
+      const j = it.jornada;
+
+      // Jornada sin nadie que haya jugado: no hay a quién coronar, pero sí la
+      // dejamos listada para que el historial no tenga huecos.
+      if (!it.lideres.length) {
+        return `
+          <article class="gan-card is-vacia" data-jornada="${j.id}">
+            <span class="gan-num">J${j.numero}</span>
+            <div class="gan-info">
+              <div class="gan-nombre">Sin participantes</div>
+              <div class="gan-sub">Nadie jugó esta jornada</div>
+            </div>
+          </article>`;
+      }
+
+      const varios = it.lideres.length > 1;
+      return `
+        <article class="gan-card" data-jornada="${j.id}" role="button" tabindex="0"
+                 aria-label="Ver ganador de la jornada ${j.numero}">
+          <span class="gan-num">J${j.numero}</span>
+          <span class="gan-medalla" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3h8l-2 6H10L8 3Z"/><circle cx="12" cy="15" r="5.5"/><path d="M12 12.6l.9 1.7 1.9.3-1.4 1.3.3 1.9-1.7-.9-1.7.9.3-1.9-1.4-1.3 1.9-.3.9-1.7Z"/>
+            </svg>
+          </span>
+          <div class="gan-info">
+            <div class="gan-nombre">${esc(nombresLideres(it.lideres))}${varios ? ` <small>(${it.lideres.length} empatados)</small>` : ''}</div>
+            <div class="gan-sub">${it.top} de ${it.jugados} aciertos · se ${varios ? 'repartieron' : 'llevó'} ${money(it.reparto)}</div>
+          </div>
+          <svg class="gan-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </article>`;
+    }).join('');
+  }
+
   function renderProgreso() {
     const total = S.partidos.length;
     const hechos = S.partidos.filter((p) => S.picks[p.id]).length;
@@ -803,6 +908,176 @@
   }
 
   // ═════════════════════════════════════════════════════════════════════
+  //  MODAL DEL GANADOR DE LA JORNADA
+  // ═════════════════════════════════════════════════════════════════════
+  //
+  //  Sale solo cuando una jornada termina, con bombo y platillo, felicitando
+  //  a quien ganó. Vive en el hueco entre jornadas y se retira solo unas horas
+  //  antes de que arranque la siguiente (VENTANA_POPUP_MS). También se abre a
+  //  mano tocando cualquier tarjeta del "Salón de la fama".
+
+  const ICO_TROFEO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 3 4.4M17 6h2.5a2.5 2.5 0 0 1-3 4.4"/><path d="M9.5 13.5 9 17h6l-.5-3.5M8 20h8M10 17v3M14 17v3"/></svg>';
+
+  function initGanadorModal() {
+    const overlay = $('#winner-overlay');
+    if (!overlay) return;
+
+    $('#winner-close').addEventListener('click', () => cerrarGanadorModal(true));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrarGanadorModal(true); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) cerrarGanadorModal(true); });
+
+    // Abrir a mano desde el Salón de la fama.
+    const lista = $('#ganadores-list');
+    if (lista) {
+      const abrirDeTarjeta = (card) => {
+        const id = card && card.dataset.jornada;
+        if (!id) return;
+        const it = S.historial.find((x) => String(x.jornada.id) === String(id));
+        if (it && it.lideres.length) abrirGanadorModal(it, false);
+      };
+      lista.addEventListener('click', (e) => abrirDeTarjeta(e.target.closest('.gan-card')));
+      lista.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          const card = e.target.closest('.gan-card');
+          if (card) { e.preventDefault(); abrirDeTarjeta(card); }
+        }
+      });
+    }
+  }
+
+  // Decide si toca sacar el popup solo. Se llama al cargar y en cada sondeo.
+  //   · Si la jornada que se está viendo ACABA de terminar (todos los partidos
+  //     terminados), la felicitamos al instante.
+  //   · Si no, y hay una jornada finalizada reciente, mostramos su ganador
+  //     hasta unas horas antes de que arranque la próxima.
+  function revisarGanadorPopup() {
+    const overlay = $('#winner-overlay');
+    if (!overlay || !overlay.hidden) return;   // ya está abierto: no reabrir
+
+    const terminada = S.partidos.length > 0 && S.partidos.every((p) => p.estado === 'terminado');
+
+    let item = null;
+    if (terminada) {
+      item = { jornada: S.jornada, ...resumenGanador(S.tabla) };
+    } else if (S.historial[0]) {
+      item = S.historial[0];
+    }
+    if (!item || !item.lideres.length) return;
+
+    // ¿El usuario ya la cerró? No lo volvemos a molestar por esa jornada.
+    if (store.get('winmodal-visto-' + item.jornada.id, false)) return;
+
+    // Ventana de tiempo: si ya hay una PRÓXIMA jornada distinta, escondemos el
+    // popup unas horas antes de que arranque. Si la que ganó es la misma que se
+    // ve (terminó apenas, aún no hay siguiente), no hay corte: se muestra ya.
+    const prox = (S.jornada && S.jornada.id !== item.jornada.id
+      && S.jornada.estado !== 'finalizada') ? S.jornada : null;
+    if (prox && prox.cierra_at) {
+      const limite = new Date(prox.cierra_at).getTime() - VENTANA_POPUP_MS;
+      if (Date.now() >= limite) return;
+    }
+
+    abrirGanadorModal(item, true);
+  }
+
+  function abrirGanadorModal(item, auto) {
+    const overlay = $('#winner-overlay');
+    const body = $('#winner-body');
+    if (!overlay || !body) return;
+
+    const j = item.jornada;
+    const varios = item.lideres.length > 1;
+    const nombre = nombresLideres(item.lideres);
+
+    const listaVarios = varios
+      ? `<ul class="win-empatados">${item.lideres.map((l) =>
+          `<li><span class="avatar">${esc(iniciales(l.nombre))}</span>${esc(l.nombre)}</li>`).join('')}</ul>`
+      : '';
+
+    body.innerHTML = `
+      <div class="win-drums" aria-hidden="true">🥁🎉🥁</div>
+      <span class="win-trofeo" aria-hidden="true">${ICO_TROFEO}</span>
+      <span class="win-eyebrow">Jornada ${esc(j.numero)} · terminada</span>
+      <h2 class="win-title" id="winner-title">${varios ? '¡Empate en la cima!' : '¡Tenemos ganador!'}</h2>
+      <p class="win-felicidades">${varios
+        ? 'Se reparten el bote a partes iguales. ¡Muchas felicidades!'
+        : `¡Muchas felicidades, campeón${/a$/i.test(nombre.trim().split(' ')[0] || '') ? 'a' : ''}! 🎊`}</p>
+
+      <div class="win-nombre">${esc(nombre)}</div>
+      ${listaVarios}
+
+      <div class="win-stats">
+        <div class="win-stat">
+          <b>${item.top}<small>/${item.jugados}</small></b>
+          <span>Aciertos</span>
+        </div>
+        <div class="win-stat is-premio">
+          <b>${money(item.reparto)}</b>
+          <span>${varios ? 'C/u del bote' : 'Se lleva'}</span>
+        </div>
+        <div class="win-stat">
+          <b>${item.gente}</b>
+          <span>${item.gente === 1 ? 'Jugador' : 'Jugadores'}</span>
+        </div>
+      </div>
+
+      <p class="win-bote">Bote total de la jornada: <b>${money(item.bote)}</b></p>
+
+      <button class="btn btn-primary btn-lg win-ok" id="winner-ok" type="button">¡Que siga la fiesta!</button>`;
+
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('#winner-ok').addEventListener('click', () => cerrarGanadorModal(auto), { once: true });
+
+    // Recordamos cuál jornada se está mostrando, para marcarla como vista al cerrar.
+    overlay.dataset.jornada = j.id;
+    overlay.dataset.auto = auto ? '1' : '0';
+
+    lanzarConfetti();
+  }
+
+  function cerrarGanadorModal(marcarVisto) {
+    const overlay = $('#winner-overlay');
+    if (!overlay || overlay.hidden) return;
+
+    // Al cerrar un popup automático, lo damos por visto: no vuelve a salir solo
+    // por esa jornada (pero sí se puede reabrir desde el Salón de la fama).
+    if (marcarVisto && overlay.dataset.auto === '1' && overlay.dataset.jornada) {
+      store.set('winmodal-visto-' + overlay.dataset.jornada, true);
+    }
+
+    overlay.hidden = true;
+    document.body.style.overflow = '';
+    const conf = $('#winner-confetti');
+    if (conf) conf.innerHTML = '';
+  }
+
+  // Confeti puro CSS: soltamos un montón de papelitos con posición, color,
+  // giro y demora al azar. Se limpian solos al cerrar el modal.
+  function lanzarConfetti() {
+    const cont = $('#winner-confetti');
+    if (!cont) return;
+    cont.innerHTML = '';
+
+    const colores = ['var(--accent)', 'var(--accent-2)', '#ffd60a', '#ff6b6b', '#c77dff', '#ffffff'];
+    const total = 64;
+    let html = '';
+    for (let i = 0; i < total; i++) {
+      const izq = Math.random() * 100;
+      const demora = (Math.random() * 2.6).toFixed(2);
+      const dur = (2.6 + Math.random() * 2.4).toFixed(2);
+      const color = colores[i % colores.length];
+      const giro = Math.round(Math.random() * 360);
+      const w = 6 + Math.round(Math.random() * 6);
+      const redondo = Math.random() > 0.7 ? '50%' : '2px';
+      html += `<i style="left:${izq}%;background:${color};width:${w}px;height:${w + 4}px;
+        border-radius:${redondo};transform:rotate(${giro}deg);
+        animation-delay:${demora}s;animation-duration:${dur}s"></i>`;
+    }
+    cont.innerHTML = html;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
   //  RELOJ Y SONDEO
   // ═════════════════════════════════════════════════════════════════════
 
@@ -854,6 +1129,9 @@
         renderEnVivo();
         renderTabla();
         renderTodos();
+        // Si la jornada acaba de terminar justo mientras miraban en vivo,
+        // este es el momento de sacar la felicitación.
+        revisarGanadorPopup();
       } catch (e) { /* si falla un sondeo, no pasa nada: al rato vuelve */ }
     }, 30000);
 

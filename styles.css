@@ -1785,6 +1785,284 @@ main {
 
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* ── Salón de la fama: ganadores de jornadas pasadas ────────────────── */
+
+.ganadores-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.gan-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 16px;
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .3s var(--ease-back), border-color .2s, box-shadow .3s var(--ease);
+}
+
+.gan-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: var(--glow);
+}
+
+.gan-card:active { transform: translateY(0) scale(.99); }
+.gan-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.gan-card.is-vacia { cursor: default; opacity: .7; }
+.gan-card.is-vacia:hover { transform: none; border-color: var(--stroke); box-shadow: var(--shadow-1); }
+
+.gan-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  font-size: .92rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.gan-medalla {
+  flex: none;
+  color: var(--warn);
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--warn) 40%, transparent));
+}
+
+.gan-medalla svg { width: 26px; height: 26px; }
+
+.gan-info { flex: 1; min-width: 0; }
+
+.gan-nombre {
+  font-weight: 700;
+  letter-spacing: -.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gan-nombre small { font-weight: 500; color: var(--text-3); font-size: .74rem; }
+
+.gan-sub {
+  font-size: .8rem;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gan-chevron { flex: none; width: 18px; height: 18px; color: var(--text-3); }
+
+/* ── Modal del ganador de la jornada ────────────────────────────────── */
+
+.winner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 4vw, 28px);
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: win-fade .3s var(--ease);
+}
+
+@keyframes win-fade { from { opacity: 0; } }
+
+.winner-modal {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: min(92dvh, 760px);
+  overflow: hidden auto;
+  border-radius: var(--r-xl);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--stroke));
+  box-shadow: var(--shadow-3), var(--glow);
+  animation: win-pop .5s var(--ease-back);
+}
+
+@keyframes win-pop { from { transform: scale(.86) translateY(20px); opacity: 0; } }
+
+/* La capa del confeti: encima de todo el modal, sin estorbar los clics */
+.winner-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.winner-confetti i {
+  position: absolute;
+  top: -8%;
+  display: block;
+  animation-name: confetti-cae;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes confetti-cae {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(115vh) rotate(680deg); opacity: 0; }
+}
+
+.winner-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 4;
+  width: 34px; height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-2);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  transition: color .2s, transform .3s var(--ease-back);
+}
+
+.winner-close:hover { color: var(--text); transform: scale(1.08); }
+
+.winner-body {
+  position: relative;
+  z-index: 2;
+  padding: clamp(26px, 5vw, 38px) clamp(20px, 4vw, 34px) clamp(22px, 4vw, 30px);
+  text-align: center;
+}
+
+.win-drums { font-size: 1.9rem; line-height: 1; margin-bottom: 6px; animation: win-bounce 1.8s var(--ease) infinite; }
+
+@keyframes win-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+.win-trofeo {
+  display: inline-grid;
+  place-items: center;
+  width: 76px; height: 76px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  color: var(--accent-ink);
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent-2) 90%, #fff) 0%, transparent 55%),
+    linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--accent) 40%, transparent);
+  animation: win-trofeo-in .6s var(--ease-back) .1s both;
+}
+
+.win-trofeo svg { width: 40px; height: 40px; }
+
+@keyframes win-trofeo-in { from { transform: scale(0) rotate(-30deg); } }
+
+.win-eyebrow {
+  display: block;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.win-title {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  letter-spacing: -.02em;
+  margin-bottom: 6px;
+}
+
+.win-felicidades { color: var(--text-2); font-size: .95rem; margin-bottom: 16px; }
+
+.win-nombre {
+  font-size: clamp(1.6rem, 6vw, 2.3rem);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  background: linear-gradient(115deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--accent);
+  margin-bottom: 14px;
+  word-break: break-word;
+}
+
+.win-empatados {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: -4px 0 16px;
+}
+
+.win-empatados li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--r-full);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+.win-empatados .avatar { width: 24px; height: 24px; font-size: .64rem; }
+
+.win-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.win-stat {
+  padding: 14px 8px;
+  border-radius: var(--r-md);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+}
+
+.win-stat.is-premio { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); }
+
+.win-stat b {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.win-stat.is-premio b { color: var(--accent); }
+.win-stat b small { font-size: .78rem; font-weight: 600; color: var(--text-3); }
+
+.win-stat span {
+  display: block;
+  margin-top: 3px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.win-bote { font-size: .86rem; color: var(--text-2); margin-bottom: 18px; }
+.win-bote b { color: var(--text); font-weight: 750; }
+
+.win-ok { width: 100%; }
+
 /* ── Responsivo ─────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {

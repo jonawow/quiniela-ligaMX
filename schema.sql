@@ -31,7 +31,7 @@ create table if not exists config (
 
 insert into config (clave, valor, nota) values
   ('cuota_bote',     '50',            'Lo que va al bote por persona, por jornada'),
-  ('cuota_manejo',   '5',             'Comisión por manejo de la quiniela (infraestructura y administración)'),
+  ('cuota_manejo',   '2',             'Comisión por manejo de la quiniela (infraestructura y administración)'),
   ('torneo',         'Apertura 2026', 'Torneo activo, como se muestra en la página'),
   ('espn_liga',      'mex.1',         'Código de Liga MX en la API de ESPN')
 on conflict (clave) do nothing;

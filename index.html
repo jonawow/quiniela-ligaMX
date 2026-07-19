@@ -67,6 +67,7 @@
           <a href="#envivo">En vivo</a>
           <a href="#tabla">Tabla</a>
           <a href="#todos">Pronósticos</a>
+          <a href="#ganadores">Ganadores</a>
         </nav>
 
         <button class="nav-arrow nav-arrow-l" id="nav-arrow-l" type="button"
@@ -308,11 +309,23 @@
       </div>
     </section>
 
+    <!-- ═══════════════ GANADORES DE JORNADAS PASADAS ═══════════════ -->
+    <section class="section" id="ganadores">
+      <div class="section-head">
+        <span class="eyebrow">Salón de la fama</span>
+        <h2 class="display">Ganadores de jornadas</h2>
+        <p>Quién se llevó el bote en cada jornada que ya cerró. Toca cualquiera para ver el detalle.</p>
+      </div>
+      <div class="ganadores-list" id="ganadores-list">
+        <div class="empty">Todavía no termina ninguna jornada. Aquí van a quedar guardados los ganadores.</div>
+      </div>
+    </section>
+
     <!-- ═══════════════ POR QUÉ $5 ═══════════════ -->
     <section class="section section-narrow" id="porque">
       <div class="section-head">
         <span class="eyebrow">Cuentas claras</span>
-        <h2 class="display">¿Por qué $5 de manejo?</h2>
+        <h2 class="display">¿Por qué $<span id="porque-manejo">2</span> de manejo?</h2>
         <p>Porque prefiero decírtelo de frente que escondértelo en letras chiquitas.</p>
       </div>
 
@@ -360,8 +373,8 @@
       </div>
 
       <p class="porque-cierre">
-        En corto: de tus <b>$55</b>, <b>$50 van completos al bote</b> y se los lleva quien gane.
-        Los <b>$5</b> son por mantener esto de pie. Te lo digo aquí, en grande, para que decidas con todo a la vista.
+        En corto: de tus <b>$<span id="porque-total">52</span></b>, <b>$<span id="porque-bote">50</span> van completos al bote</b> y se los lleva quien gane.
+        Los <b>$<span id="porque-manejo-2">2</span></b> son por mantener esto de pie. Te lo digo aquí, en grande, para que decidas con todo a la vista.
       </p>
     </section>
   </main>
@@ -397,6 +410,19 @@
       <div class="admin-body" id="admin-body">
         <div class="empty">Cargando…</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ MODAL DEL GANADOR DE LA JORNADA ═══════════════
+       Sale solo cuando una jornada termina, felicitando a quien ganó. Se
+       queda hasta unas horas antes de que arranque la siguiente, o hasta que
+       lo cierres. También se abre a mano desde la sección "Ganadores". El
+       contenido lo arma app.js; aquí solo va el cascarón. -->
+  <div class="winner-overlay" id="winner-overlay" hidden>
+    <div class="winner-modal glass" role="dialog" aria-modal="true" aria-labelledby="winner-title">
+      <div class="winner-confetti" id="winner-confetti" aria-hidden="true"></div>
+      <button class="winner-close" id="winner-close" type="button" aria-label="Cerrar">&times;</button>
+      <div class="winner-body" id="winner-body"></div>
     </div>
   </div>
 
