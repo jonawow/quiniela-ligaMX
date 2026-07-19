@@ -33,6 +33,7 @@
     todos: [],
     pagos: {},        // { [participanteId]: true } — solo lo usa el panel
     historial: [],    // ganadores de jornadas ya finalizadas, reciente primero
+    picksCache: {},   // { [jornadaId]: pronosticos[] } — se llena bajo demanda
     timer: null
   };
 
@@ -167,6 +168,7 @@
     conectarEventos();
     initAdmin();
     initGanadorModal();
+    initHistorico();
     revisarGanadorPopup();
   }
 
@@ -248,18 +250,45 @@
     if (!finalizadas.length) { S.historial = []; return; }
 
     const ids = finalizadas.map((j) => j.id);
-    const { data: filas } = await S.sb.from('v_tabla').select('*').in('jornada_id', ids);
 
-    const porJornada = new Map();
-    (filas || []).forEach((r) => {
-      if (!porJornada.has(r.jornada_id)) porJornada.set(r.jornada_id, []);
-      porJornada.get(r.jornada_id).push(r);
-    });
+    // De un jalón: la tabla de aciertos (para el ganador) y los partidos de
+    // todas las jornadas (para el histórico de resultados). Los pronósticos de
+    // cada quien NO se traen aquí: pesan más y solo hacen falta al desplegar
+    // una jornada o abrir el detalle, así que se cargan bajo demanda.
+    const [rTabla, rPartidos] = await Promise.all([
+      S.sb.from('v_tabla').select('*').in('jornada_id', ids),
+      S.sb.from('partidos').select('*').in('jornada_id', ids).order('fecha', { ascending: true })
+    ]);
+
+    const tablaPorJornada = agrupar(rTabla.data || [], 'jornada_id');
+    const partidosPorJornada = agrupar(rPartidos.data || [], 'jornada_id');
 
     S.historial = finalizadas.map((j) => ({
       jornada: j,
-      ...resumenGanador(porJornada.get(j.id) || [])
+      partidos: partidosPorJornada.get(j.id) || [],
+      ...resumenGanador(tablaPorJornada.get(j.id) || [])
     }));
+  }
+
+  // Agrupa un arreglo de filas por el valor de una columna → Map(valor → filas[]).
+  function agrupar(filas, col) {
+    const m = new Map();
+    filas.forEach((r) => {
+      if (!m.has(r[col])) m.set(r[col], []);
+      m.get(r[col]).push(r);
+    });
+    return m;
+  }
+
+  // Pronósticos de una jornada (con el nombre de cada quien), a demanda y en
+  // caché: para el detalle del ganador y para el desplegable del histórico.
+  async function cargarPicksJornada(jornadaId) {
+    if (S.picksCache[jornadaId]) return S.picksCache[jornadaId];
+    const { data } = await S.sb.from('pronosticos')
+      .select('partido_id, pick, participante_id, participantes(nombre)')
+      .eq('jornada_id', jornadaId);
+    S.picksCache[jornadaId] = data || [];
+    return S.picksCache[jornadaId];
   }
 
   // ── ¿Ya cerró? ───────────────────────────────────────────────────────
@@ -283,6 +312,7 @@
     renderTabla();
     renderTodos();
     renderHistorial();
+    renderHistorico();
     renderProgreso();
   }
 
@@ -596,35 +626,35 @@
     </span>`;
   }
 
-  function renderTodos() {
-    const cont = $('#todos-grid');
-
-    // Agrupamos los picks por persona.
+  // La rejilla de "qué le puso cada quien", con sus escudos pintados de verde
+  // o rojo según el resultado. La usan por igual la jornada activa (Pronósticos
+  // de todos) y cada jornada del histórico. Devuelve solo las tarjetas; el
+  // estado vacío lo pone quien llama, porque el mensaje cambia según el lugar.
+  function htmlGridPicks(rows, partidos) {
     const porPersona = new Map();
-    S.todos.forEach((r) => {
+    (rows || []).forEach((r) => {
       const nombre = r.participantes?.nombre || '—';
       if (!porPersona.has(nombre)) porPersona.set(nombre, []);
       porPersona.get(nombre).push(r);
     });
-
-    if (!porPersona.size) {
-      cont.innerHTML = '<div class="empty" style="grid-column:1/-1">Nadie pronosticó esta jornada.</div>';
-      return;
-    }
+    if (!porPersona.size) return '';
 
     // Los picks vienen de la base sin orden garantizado. Los acomodamos en el
     // mismo orden en que se juegan los partidos: así la fila de escudos de
     // cada quien se lee en paralelo con la de los demás.
-    const orden = Object.fromEntries(S.partidos.map((p, i) => [p.id, i]));
-    const porId = Object.fromEntries(S.partidos.map((p) => [p.id, p]));
+    const orden = Object.fromEntries(partidos.map((p, i) => [p.id, i]));
+    const porId = Object.fromEntries(partidos.map((p) => [p.id, p]));
 
-    cont.innerHTML = [...porPersona.entries()].map(([nombre, picks]) => {
+    const gente = [...porPersona.entries()].map(([nombre, picks]) => {
       picks.sort((a, b) => (orden[a.partido_id] ?? 99) - (orden[b.partido_id] ?? 99));
-
       const aciertos = picks.filter((p) => porId[p.partido_id]?.resultado === p.pick).length;
-      const chips = picks.map((p) => chipPick(p.pick, porId[p.partido_id])).join('');
+      return { nombre, picks, aciertos };
+    });
+    // Más aciertos arriba: en una jornada terminada, el de hasta arriba es el
+    // ganador y se lee de un vistazo por qué.
+    gente.sort((a, b) => b.aciertos - a.aciertos || a.nombre.localeCompare(b.nombre));
 
-      return `
+    return gente.map(({ nombre, picks, aciertos }) => `
         <article class="todo-card">
           <div class="todo-head">
             <span class="avatar">${esc(iniciales(nombre))}</span>
@@ -633,9 +663,19 @@
               <div class="todo-sub">${aciertos} de ${picks.length} aciertos</div>
             </div>
           </div>
-          <div class="todo-picks">${chips}</div>
-        </article>`;
-    }).join('');
+          <div class="todo-picks">${chips(picks, porId)}</div>
+        </article>`).join('');
+
+    function chips(picks, porId) {
+      return picks.map((p) => chipPick(p.pick, porId[p.partido_id])).join('');
+    }
+  }
+
+  function renderTodos() {
+    const cont = $('#todos-grid');
+    const html = htmlGridPicks(S.todos, S.partidos);
+    cont.innerHTML = html ||
+      '<div class="empty" style="grid-column:1/-1">Nadie pronosticó esta jornada.</div>';
   }
 
   // ── Salón de la fama: ganadores de jornadas pasadas ──────────────────
@@ -688,6 +728,73 @@
           </div>
           <svg class="gan-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
         </article>`;
+    }).join('');
+  }
+
+  // ── El archivo: resultados de jornadas pasadas ───────────────────────
+  // Una fila compacta por partido: escudo + nombre de cada lado y el marcador
+  // al centro. El lado que ganó se resalta; el empate se marca en medio.
+  function htmlResultadoPartido(p) {
+    const gl = p.goles_local ?? 0;
+    const gv = p.goles_visitante ?? 0;
+    const res = p.resultado;
+    const logo = (url) => url
+      ? `<img class="team-logo" src="${esc(url)}" alt="" loading="lazy">`
+      : '<span class="team-logo"></span>';
+
+    return `
+      <div class="res-row">
+        <div class="res-team${res === 'L' ? ' is-win' : ''}">
+          ${logo(p.local_logo)}
+          <span class="res-name">${esc(p.local)}</span>
+        </div>
+        <div class="res-score${res === 'E' ? ' is-draw' : ''}">
+          <b>${gl}</b><em>–</em><b>${gv}</b>
+        </div>
+        <div class="res-team res-away${res === 'V' ? ' is-win' : ''}">
+          <span class="res-name">${esc(p.visitante)}</span>
+          ${logo(p.visitante_logo)}
+        </div>
+      </div>`;
+  }
+
+  function renderHistorico() {
+    const cont = $('#historico-list');
+    if (!cont) return;
+
+    if (!S.historial.length) {
+      cont.innerHTML = '<div class="empty">Todavía no termina ninguna jornada. ' +
+        'Aquí va a quedar el archivo de resultados.</div>';
+      return;
+    }
+
+    cont.innerHTML = S.historial.map((it) => {
+      const j = it.jornada;
+      const sub = it.lideres.length
+        ? `${esc(nombresLideres(it.lideres))} · ${it.top}/${it.jugados} aciertos`
+        : 'Nadie jugó esta jornada';
+      const resultados = it.partidos.map(htmlResultadoPartido).join('')
+        || '<div class="empty">No se guardaron los partidos de esta jornada.</div>';
+
+      return `
+        <details class="hist-jornada" data-jornada="${j.id}">
+          <summary class="hist-sum">
+            <span class="hist-jnum">J${j.numero}</span>
+            <div class="hist-sum-info">
+              <div class="hist-sum-title">Jornada ${j.numero} · Resultados</div>
+              <div class="hist-sum-sub"><span class="hist-trofeo">🏆</span> ${sub}</div>
+            </div>
+            <svg class="hist-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="hist-body">
+            <div class="hist-resultados">${resultados}</div>
+            <div class="hist-picks" data-picks="${j.id}">
+              <button class="hist-ver-picks" type="button" data-verpicks="${j.id}">
+                Ver qué pronosticó cada quien
+              </button>
+            </div>
+          </div>
+        </details>`;
     }).join('');
   }
 
@@ -945,6 +1052,64 @@
     }
   }
 
+  // El botón "Ver qué pronosticó cada quien" de cada jornada del histórico:
+  // trae los pronósticos (a demanda, en caché) y pinta la rejilla de escudos
+  // con sus aciertos y fallos. Así cualquiera ve por qué ganó uno y por qué
+  // perdieron los demás. Delegado, sobrevive a los repintados.
+  function initHistorico() {
+    const lista = $('#historico-list');
+    if (!lista) return;
+
+    lista.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-verpicks]');
+      if (!btn) return;
+
+      const id = btn.dataset.verpicks;
+      const cont = btn.closest('.hist-picks');
+      cont.innerHTML = '<div class="empty">Cargando pronósticos…</div>';
+
+      try {
+        const it = S.historial.find((x) => String(x.jornada.id) === String(id));
+        const rows = await cargarPicksJornada(id);
+        const grid = htmlGridPicks(rows, it ? it.partidos : []);
+        cont.innerHTML = grid
+          ? `<div class="todos-grid">${grid}</div>`
+          : '<div class="empty">Nadie pronosticó esta jornada.</div>';
+      } catch (err) {
+        cont.innerHTML = `<div class="empty">No se pudieron cargar los pronósticos.
+          <button class="hist-ver-picks" type="button" data-verpicks="${esc(id)}">Reintentar</button></div>`;
+      }
+    });
+  }
+
+  // Los pronósticos del o los ganadores, en escudos verdes/rojos: el "por qué
+  // ganó" hecho imagen. Se inyecta en el modal cuando llegan los datos.
+  function htmlPicksGanadores(lideres, rows, partidos) {
+    const porId = Object.fromEntries(partidos.map((p) => [p.id, p]));
+    const orden = Object.fromEntries(partidos.map((p, i) => [p.id, i]));
+
+    const porPersona = new Map();
+    (rows || []).forEach((r) => {
+      if (!porPersona.has(r.participante_id)) porPersona.set(r.participante_id, []);
+      porPersona.get(r.participante_id).push(r);
+    });
+
+    const bloques = lideres.map((l) => {
+      const picks = (porPersona.get(l.participante_id) || []).slice()
+        .sort((a, b) => (orden[a.partido_id] ?? 99) - (orden[b.partido_id] ?? 99));
+      if (!picks.length) return '';
+      const chips = picks.map((p) => chipPick(p.pick, porId[p.partido_id])).join('');
+      return `
+        <div class="win-picks-persona">
+          ${lideres.length > 1 ? `<span class="win-picks-nombre">${esc(l.nombre)}</span>` : ''}
+          <div class="todo-picks">${chips}</div>
+        </div>`;
+    }).join('');
+
+    if (!bloques) return '';
+    return `<div class="win-picks-label">${lideres.length > 1 ? 'Así les fue' : 'Así le fue'} · sus aciertos y fallos</div>${bloques}`;
+  }
+
   // Decide si toca sacar el popup solo. Se llama al cargar y en cada sondeo.
   //   · Si la jornada que se está viendo ACABA de terminar (todos los partidos
   //     terminados), la felicitamos al instante.
@@ -1001,7 +1166,7 @@
       <h2 class="win-title" id="winner-title">${varios ? '¡Empate en la cima!' : '¡Tenemos ganador!'}</h2>
       <p class="win-felicidades">${varios
         ? 'Se reparten el bote a partes iguales. ¡Muchas felicidades!'
-        : `¡Muchas felicidades, campeón${/a$/i.test(nombre.trim().split(' ')[0] || '') ? 'a' : ''}! 🎊`}</p>
+        : '¡Muchas felicidades! Se lució esta jornada. 🎊'}</p>
 
       <div class="win-nombre">${esc(nombre)}</div>
       ${listaVarios}
@@ -1023,11 +1188,34 @@
 
       <p class="win-bote">Bote total de la jornada: <b>${money(item.bote)}</b></p>
 
+      <div class="win-picks" id="winner-picks">
+        <div class="win-picks-load">Cargando sus pronósticos…</div>
+      </div>
+
       <button class="btn btn-primary btn-lg win-ok" id="winner-ok" type="button">¡Que siga la fiesta!</button>`;
 
     overlay.hidden = false;
     document.body.style.overflow = 'hidden';
     $('#winner-ok').addEventListener('click', () => cerrarGanadorModal(auto), { once: true });
+
+    // Los escudos por los que votó el ganador — el "por qué ganó". Si la jornada
+    // es la que se ve en vivo, ya tenemos sus picks en S.todos; si es una del
+    // histórico, los traemos a demanda. Se inyectan cuando lleguen.
+    const partidosMod = (item.partidos && item.partidos.length) ? item.partidos : S.partidos;
+    const picksReady = (item.partidos && item.partidos.length)
+      ? cargarPicksJornada(item.jornada.id)
+      : Promise.resolve(S.todos);
+
+    picksReady.then((rows) => {
+      const cont = document.getElementById('winner-picks');
+      if (!cont) return;   // lo cerraron antes de que llegara
+      const html = htmlPicksGanadores(item.lideres, rows, partidosMod);
+      if (html) cont.innerHTML = html;
+      else cont.remove();
+    }).catch(() => {
+      const cont = document.getElementById('winner-picks');
+      if (cont) cont.remove();
+    });
 
     // Recordamos cuál jornada se está mostrando, para marcarla como vista al cerrar.
     overlay.dataset.jornada = j.id;

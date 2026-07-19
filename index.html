@@ -68,6 +68,7 @@
           <a href="#tabla">Tabla</a>
           <a href="#todos">Pronósticos</a>
           <a href="#ganadores">Ganadores</a>
+          <a href="#historico">Resultados</a>
         </nav>
 
         <button class="nav-arrow nav-arrow-l" id="nav-arrow-l" type="button"
@@ -321,15 +322,37 @@
       </div>
     </section>
 
-    <!-- ═══════════════ POR QUÉ $5 ═══════════════ -->
-    <section class="section section-narrow" id="porque">
+    <!-- ═══════════════ HISTÓRICO DE RESULTADOS ═══════════════
+         El archivo, jornada por jornada: cómo quedó cada partido y, si lo
+         despliegas, qué le puso cada quien (con sus aciertos y fallos). Todo
+         a la vista para que se entienda por qué ganó uno y perdieron los demás.
+         El contenido lo arma app.js. -->
+    <section class="section" id="historico">
       <div class="section-head">
-        <span class="eyebrow">Cuentas claras</span>
-        <h2 class="display">¿Por qué $<span id="porque-manejo">2</span> de manejo?</h2>
-        <p>Porque prefiero decírtelo de frente que escondértelo en letras chiquitas.</p>
+        <span class="eyebrow">El archivo</span>
+        <h2 class="display">Resultados de jornadas pasadas</h2>
+        <p>Cómo quedó cada partido de las jornadas que ya terminaron. Despliega una para ver
+          los marcadores y qué pronosticó cada jugador — a quién le atinó y a quién no.</p>
       </div>
+      <div class="historico-list" id="historico-list">
+        <div class="empty">Todavía no termina ninguna jornada. Aquí va a quedar el archivo de resultados.</div>
+      </div>
+    </section>
 
-      <div class="porque-grid">
+    <!-- ═══════════════ POR QUÉ EL MANEJO (desplegable, al final) ═══════════════ -->
+    <section class="section section-narrow" id="porque">
+      <details class="porque-details">
+        <summary class="porque-summary">
+          <span class="porque-summary-eyebrow">Cuentas claras</span>
+          <span class="porque-summary-title">¿Por qué $<span id="porque-manejo">2</span> de manejo?</span>
+          <span class="porque-summary-hint">Toca para ver el desglose</span>
+          <svg class="porque-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+
+        <div class="porque-content">
+          <p class="porque-intro">Porque prefiero decírtelo de frente que escondértelo en letras chiquitas.</p>
+
+          <div class="porque-grid">
         <div class="porque-card glass">
           <span class="porque-ico" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -372,10 +395,12 @@
         </div>
       </div>
 
-      <p class="porque-cierre">
-        En corto: de tus <b>$<span id="porque-total">52</span></b>, <b>$<span id="porque-bote">50</span> van completos al bote</b> y se los lleva quien gane.
-        Los <b>$<span id="porque-manejo-2">2</span></b> son por mantener esto de pie. Te lo digo aquí, en grande, para que decidas con todo a la vista.
-      </p>
+          <p class="porque-cierre">
+            En corto: de tus <b>$<span id="porque-total">52</span></b>, <b>$<span id="porque-bote">50</span> van completos al bote</b> y se los lleva quien gane.
+            Los <b>$<span id="porque-manejo-2">2</span></b> son por mantener esto de pie. Te lo digo aquí, en grande, para que decidas con todo a la vista.
+          </p>
+        </div>
+      </details>
     </section>
   </main>
 

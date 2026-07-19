@@ -2063,6 +2063,221 @@ main {
 
 .win-ok { width: 100%; }
 
+/* Los pronósticos del ganador dentro del modal (por qué ganó) */
+.win-picks { margin: 2px 0 18px; text-align: left; }
+.win-picks-load { text-align: center; color: var(--text-3); font-size: .84rem; padding: 4px 0; }
+
+.win-picks-label {
+  text-align: center;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+
+.win-picks-persona { margin-bottom: 12px; }
+.win-picks-persona:last-child { margin-bottom: 0; }
+.win-picks-nombre { display: block; font-size: .82rem; font-weight: 700; margin-bottom: 5px; text-align: center; }
+.win-picks .todo-picks { justify-content: center; }
+
+/* ── Histórico de resultados (acordeón por jornada) ─────────────────── */
+
+.historico-list { display: flex; flex-direction: column; gap: 10px; }
+
+.hist-jornada {
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.hist-jornada[open] { border-color: var(--stroke-2); box-shadow: var(--shadow-2); }
+
+.hist-sum {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  transition: background .2s var(--ease);
+}
+
+.hist-sum::-webkit-details-marker { display: none; }
+.hist-sum:hover { background: var(--glass-2); }
+.hist-sum:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Mismo disco numerado que el Salón de la fama */
+.hist-jnum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  font-size: .88rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.hist-sum-info { flex: 1; min-width: 0; }
+.hist-sum-title { font-weight: 700; letter-spacing: -.015em; }
+
+.hist-sum-sub {
+  font-size: .82rem;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hist-trofeo { filter: grayscale(.1); }
+
+.hist-chevron {
+  flex: none;
+  width: 20px; height: 20px;
+  color: var(--text-3);
+  transition: transform .3s var(--ease);
+}
+
+.hist-jornada[open] .hist-chevron { transform: rotate(180deg); }
+
+.hist-body { padding: 2px 16px 16px; }
+
+.hist-resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.res-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+}
+
+.res-row:nth-child(odd) { background: color-mix(in srgb, var(--text) 4%, transparent); }
+
+.res-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.res-team .team-logo { width: 24px; height: 24px; flex: none; }
+.res-away { flex-direction: row-reverse; text-align: right; }
+.res-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-team.is-win { color: var(--text); font-weight: 750; }
+
+.res-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border-radius: var(--r-full);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 1rem;
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+}
+
+.res-score em { color: var(--text-3); font-style: normal; font-weight: 600; }
+.res-score.is-draw { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+
+.hist-ver-picks {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: var(--r-full);
+  font-size: .82rem;
+  font-weight: 650;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  transition: transform .2s var(--ease-back), background .2s;
+}
+
+.hist-ver-picks:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); transform: translateY(-1px); }
+.hist-ver-picks:active { transform: translateY(0); }
+
+.hist-picks .todos-grid { margin-top: 2px; }
+
+/* ── "¿Por qué el manejo?" como desplegable, al final ───────────────── */
+
+.porque-details {
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.porque-details[open] { box-shadow: var(--shadow-2); border-color: var(--stroke-2); }
+
+.porque-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "eye chev" "title chev" "hint chev";
+  align-items: center;
+  column-gap: 14px;
+  padding: 20px 22px;
+  cursor: pointer;
+  list-style: none;
+  transition: background .2s var(--ease);
+}
+
+.porque-summary::-webkit-details-marker { display: none; }
+.porque-summary:hover { background: var(--glass-2); }
+.porque-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.porque-summary-eyebrow {
+  grid-area: eye;
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.porque-summary-title {
+  grid-area: title;
+  font-size: clamp(1.3rem, 3.6vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+
+.porque-summary-hint { grid-area: hint; font-size: .82rem; color: var(--text-3); margin-top: 4px; }
+.porque-details[open] .porque-summary-hint { display: none; }
+
+.porque-chevron {
+  grid-area: chev;
+  width: 24px; height: 24px;
+  color: var(--text-3);
+  transition: transform .3s var(--ease);
+}
+
+.porque-details[open] .porque-chevron { transform: rotate(180deg); }
+
+.porque-content { padding: 4px 22px 26px; }
+.porque-intro { color: var(--text-2); margin-bottom: 20px; }
+
 /* ── Responsivo ─────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
