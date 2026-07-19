@@ -227,6 +227,68 @@ async function moverEstados(torneo: string) {
   }
 }
 
+// ── Paso 5: la tabla de posiciones de la Liga MX ───────────────────────
+// La tabla general oficial, tal cual la publica ESPN. No es crítica para la
+// quiniela (los resultados y el cierre no dependen de ella), así que si falla
+// se registra y se sigue. Solo sirve de referencia bonita para pronosticar.
+
+async function sincronizarPosiciones(liga: string, torneo: string): Promise<number> {
+  const url = `https://site.api.espn.com/apis/v2/sports/soccer/${liga}/standings`;
+  const r = await fetch(url, { headers: { 'accept': 'application/json' } });
+  if (!r.ok) throw new Error(`ESPN posiciones respondió ${r.status}`);
+
+  const json = await r.json();
+
+  // Puede venir más de un "child" (grupos/torneos); agarramos el primero que
+  // de verdad traiga equipos. Hoy la Liga MX devuelve uno solo: el torneo activo.
+  const child = (json.children ?? []).find((c: any) => c?.standings?.entries?.length);
+  const entries = child?.standings?.entries ?? [];
+  if (!entries.length) return 0;
+
+  // Cada stat viene con nombre ('wins', 'points'…) y valor. Sacamos el que toca.
+  const num = (stats: any[], name: string): number | null => {
+    const s = (stats ?? []).find((x: any) => x.name === name);
+    if (!s) return null;
+    const v = Number(s.value ?? s.displayValue);
+    return Number.isFinite(v) ? Math.round(v) : null;
+  };
+
+  const filas = entries.map((e: any) => {
+    const t = e.team ?? {};
+    const st = e.stats ?? [];
+    return {
+      torneo,
+      espn_team_id: String(t.id ?? t.uid ?? t.displayName),
+      equipo: t.displayName ?? t.name ?? '?',
+      equipo_abbr: t.abbreviation ?? null,
+      logo: t.logos?.[0]?.href ?? null,
+      jugados: num(st, 'gamesPlayed'),
+      ganados: num(st, 'wins'),
+      empatados: num(st, 'ties'),
+      perdidos: num(st, 'losses'),
+      goles_favor: num(st, 'pointsFor'),
+      goles_contra: num(st, 'pointsAgainst'),
+      diferencia: num(st, 'pointDifferential'),
+      puntos: num(st, 'points'),
+      posicion: 0,
+      actualizado_at: new Date().toISOString()
+    };
+  });
+
+  // El orden de la Liga MX: puntos, luego diferencia de goles, luego goles a
+  // favor. Lo calculamos nosotros para que la posición siempre salga 1..18
+  // sin huecos, sin depender de que ESPN mande el 'rank'.
+  filas.sort((a: any, b: any) =>
+    (b.puntos ?? 0) - (a.puntos ?? 0) ||
+    (b.diferencia ?? 0) - (a.diferencia ?? 0) ||
+    (b.goles_favor ?? 0) - (a.goles_favor ?? 0) ||
+    String(a.equipo).localeCompare(String(b.equipo)));
+  filas.forEach((f: any, i: number) => { f.posicion = i + 1; });
+
+  await sb.from('posiciones').upsert(filas, { onConflict: 'torneo,espn_team_id' });
+  return filas.length;
+}
+
 // ── Entrada ────────────────────────────────────────────────────────────
 
 Deno.serve(async () => {
@@ -240,6 +302,16 @@ Deno.serve(async () => {
     const creadas = await crearJornadasNuevas(partidos, conocidos, torneo);
     await moverEstados(torneo);
 
+    // La tabla de posiciones va aparte y sin reventar el sync: es un adorno
+    // útil, no el corazón de la quiniela. Si ESPN cambia su formato de
+    // standings, la quiniela sigue jalando igual.
+    let posiciones = 0;
+    try {
+      posiciones = await sincronizarPosiciones(liga, torneo);
+    } catch (e) {
+      console.error('Posiciones no se pudieron actualizar:', e);
+    }
+
     // El latido. Escribir aquí reinicia el contador de inactividad de
     // Supabase, así el proyecto gratis nunca se pausa — ni en el parón
     // entre Apertura y Clausura, cuando no hay un solo partido que jalar.
@@ -250,6 +322,7 @@ Deno.serve(async () => {
       torneo,
       vistos: partidos.length,
       jornadas_creadas: creadas,
+      posiciones,
       ms: Date.now() - inicio
     };
     console.log(JSON.stringify(res));

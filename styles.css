@@ -2278,6 +2278,81 @@ main {
 .porque-content { padding: 4px 22px 26px; }
 .porque-intro { color: var(--text-2); margin-bottom: 20px; }
 
+/* ── Tabla de posiciones de la Liga MX ──────────────────────────────── */
+
+.pos-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; }
+
+.pos-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.zc { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.zc-liguilla { background: var(--accent); }
+.zc-playin { background: var(--accent-2); }
+
+.pos-table { border-radius: var(--r-lg); padding: 6px; }
+
+.pos-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 40px 48px 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  font-size: .92rem;
+}
+
+.pos-row + .pos-row { border-top: 1px solid var(--stroke); }
+.pos-row:not(.is-head):hover { background: var(--glass-2); }
+
+.pos-row.is-head {
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.pos-row.is-head span:nth-child(n+3) { text-align: center; }
+
+.pos-num {
+  position: relative;
+  text-align: center;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* Barrita de color de la zona de clasificación, pegada al número */
+.pos-row.zona-liguilla .pos-num::before,
+.pos-row.zona-playin .pos-num::before {
+  content: '';
+  position: absolute;
+  left: -6px; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 62%;
+  border-radius: 2px;
+}
+
+.pos-row.zona-liguilla .pos-num::before { background: var(--accent); }
+.pos-row.zona-playin .pos-num::before { background: var(--accent-2); }
+.pos-row.zona-liguilla .pos-num { color: var(--accent); }
+
+.pos-equipo { display: flex; align-items: center; gap: 9px; min-width: 0; font-weight: 650; }
+.pos-equipo .team-logo { width: 26px; height: 26px; flex: none; }
+.pos-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-abbr { display: none; }
+
+.pos-pj, .pos-dg, .pos-pts { text-align: center; font-variant-numeric: tabular-nums; }
+.pos-pj { color: var(--text-3); }
+.pos-dg { color: var(--text-2); font-weight: 600; }
+.pos-pts { font-weight: 800; font-size: 1rem; }
+
 /* ── Responsivo ─────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -2350,6 +2425,14 @@ main {
 
   .name-row { flex-direction: column; align-items: stretch; }
   .name-row input { width: 100%; min-height: 48px; }
+
+  /* La tabla de la Liga MX: en celular, la abreviatura en vez del nombre
+     largo, y columnas más apretadas. Se mantienen las 5 para que los
+     números no se desalineen. */
+  .pos-row { grid-template-columns: 28px 1fr 32px 42px 42px; gap: 6px; padding: 10px 8px; }
+  .pos-nombre { display: none; }
+  .pos-abbr { display: inline; font-weight: 700; }
+  .pos-equipo .team-logo { width: 24px; height: 24px; }
 }
 
 /* ── Respeto a quien pidió menos movimiento ─────────────────────────── */

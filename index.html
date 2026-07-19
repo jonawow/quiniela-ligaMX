@@ -65,6 +65,7 @@
         <nav class="nav" id="nav" aria-label="Secciones">
           <a href="#jugar">Jugar</a>
           <a href="#envivo">En vivo</a>
+          <a href="#posiciones">Liga MX</a>
           <a href="#tabla">Tabla</a>
           <a href="#todos">Pronósticos</a>
           <a href="#ganadores">Ganadores</a>
@@ -236,6 +237,27 @@
       </div>
       <div class="envivo-list" id="envivo-list">
         <div class="empty">Todavía no arranca la jornada.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ TABLA DE LA LIGA MX ═══════════════
+         La tabla general oficial, tal cual la trae el cron desde ESPN. Puro
+         referente para pronosticar con más tino. El contenido lo arma app.js. -->
+    <section class="section" id="posiciones">
+      <div class="section-head">
+        <span class="eyebrow">La Liga por dentro</span>
+        <h2 class="display">Tabla de la Liga MX</h2>
+        <p>Cómo van los equipos de verdad, tomado de la fuente oficial. Te sirve para pronosticar
+          con más tino, y se actualiza sola.</p>
+      </div>
+
+      <div class="pos-legend">
+        <span class="pos-legend-item"><i class="zc zc-liguilla"></i>Liguilla directa (1–6)</span>
+        <span class="pos-legend-item"><i class="zc zc-playin"></i>Play-In (7–10)</span>
+      </div>
+
+      <div class="pos-table glass" id="posiciones-wrap">
+        <div class="empty">Cargando la tabla de la Liga MX…</div>
       </div>
     </section>
 

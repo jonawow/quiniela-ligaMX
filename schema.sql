@@ -154,6 +154,30 @@ create table if not exists pagos (
 );
 
 
+-- ── 7B. POSICIONES DE LA LIGA MX ───────────────────────────────────────
+-- La tabla general oficial de la Liga MX. La llena el cron desde ESPN cada
+-- corrida; la página solo la lee. Sirve de referencia para pronosticar.
+
+create table if not exists posiciones (
+  torneo         text not null,          -- el mismo de config.torneo
+  espn_team_id   text not null,          -- id estable del equipo en ESPN
+  equipo         text not null,
+  equipo_abbr    text,
+  logo           text,
+  posicion       int,
+  jugados        int,
+  ganados        int,
+  empatados      int,
+  perdidos       int,
+  goles_favor    int,
+  goles_contra   int,
+  diferencia     int,
+  puntos         int,
+  actualizado_at timestamptz not null default now(),
+  primary key (torneo, espn_team_id)
+);
+
+
 -- ── 8. TABLA DE LA QUINIELA (vista calculada) ──────────────────────────
 -- No guardamos puntos: se calculan al vuelo comparando pick vs resultado.
 -- Así nunca hay puntajes "viejos" desincronizados de los resultados.
@@ -202,6 +226,7 @@ alter table partidos      enable row level security;
 alter table participantes enable row level security;
 alter table pronosticos   enable row level security;
 alter table pagos         enable row level security;
+alter table posiciones    enable row level security;
 alter table latido        enable row level security;
 
 -- Lectura pública: la quiniela es transparente, todos ven todo.
@@ -219,6 +244,9 @@ create policy lectura_publica on participantes for select using (true);
 
 drop policy if exists lectura_publica on pagos;
 create policy lectura_publica on pagos for select using (true);
+
+drop policy if exists lectura_publica on posiciones;
+create policy lectura_publica on posiciones for select using (true);
 
 -- PRONÓSTICOS: a la vista de todos, siempre. La quiniela es transparente de
 -- principio a fin: cualquiera puede ver lo que puso cada quien desde el

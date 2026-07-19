@@ -34,6 +34,7 @@
     pagos: {},        // { [participanteId]: true } — solo lo usa el panel
     historial: [],    // ganadores de jornadas ya finalizadas, reciente primero
     picksCache: {},   // { [jornadaId]: pronosticos[] } — se llena bajo demanda
+    posiciones: [],   // tabla general de la Liga MX (la trae el cron)
     timer: null
   };
 
@@ -160,7 +161,8 @@
       return;
     }
 
-    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos(), cargarHistorial()]);
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos(),
+      cargarHistorial(), cargarPosiciones()]);
 
     render();
     arrancarReloj();
@@ -238,6 +240,14 @@
     S.todos = data || [];
   }
 
+  // ── Tabla de posiciones de la Liga MX ────────────────────────────────
+  // La llena el cron desde ESPN; aquí solo se lee, ya ordenada por posición.
+  async function cargarPosiciones() {
+    const { data } = await S.sb.from('posiciones').select('*')
+      .eq('torneo', S.cfg.torneo).order('posicion', { ascending: true });
+    S.posiciones = data || [];
+  }
+
   // ── Historial: ganadores de las jornadas ya finalizadas ────────────────
   // Una sola pasada: traemos las jornadas finalizadas y, de un jalón, la tabla
   // de aciertos de todas ellas. El ganador y el reparto se calculan aquí con
@@ -311,6 +321,7 @@
     renderEnVivo();
     renderTabla();
     renderTodos();
+    renderPosiciones();
     renderHistorial();
     renderHistorico();
     renderProgreso();
@@ -589,6 +600,55 @@
       <div class="tabla-row is-head">
         <span>#</span><span>Jugador</span><span>Aciertos</span>
         <span>${terminada ? 'Gana' : 'Va ganando'}</span>
+      </div>
+      ${filas}`;
+  }
+
+  // ── Tabla de posiciones de la Liga MX ────────────────────────────────
+  // Zonas de clasificación del formato actual: 1–6 pasan directo a Liguilla,
+  // 7–10 juegan el Play-In. Si algún día la Liga cambia el formato, se ajusta
+  // aquí y en la leyenda del HTML.
+  function zonaLiga(pos) {
+    if (pos >= 1 && pos <= 6) return 'liguilla';
+    if (pos >= 7 && pos <= 10) return 'playin';
+    return '';
+  }
+
+  function renderPosiciones() {
+    const cont = $('#posiciones-wrap');
+    if (!cont) return;
+
+    if (!S.posiciones.length) {
+      cont.innerHTML = '<div class="empty">La tabla de la Liga MX aparece aquí en cuanto el ' +
+        'sistema la traiga. Se actualiza sola cuando hay partidos.</div>';
+      return;
+    }
+
+    const filas = S.posiciones.map((r) => {
+      const dg = r.diferencia ?? 0;
+      const dgTxt = dg > 0 ? '+' + dg : String(dg);
+      const abbr = r.equipo_abbr || String(r.equipo || '').slice(0, 3).toUpperCase();
+      const logo = r.logo
+        ? `<img class="team-logo" src="${esc(r.logo)}" alt="" loading="lazy">`
+        : '<span class="team-logo"></span>';
+
+      return `
+        <div class="pos-row zona-${zonaLiga(r.posicion)}">
+          <span class="pos-num">${r.posicion}</span>
+          <span class="pos-equipo">
+            ${logo}
+            <span class="pos-nombre">${esc(r.equipo)}</span>
+            <span class="pos-abbr">${esc(abbr)}</span>
+          </span>
+          <span class="pos-pj">${r.jugados ?? 0}</span>
+          <span class="pos-dg">${esc(dgTxt)}</span>
+          <span class="pos-pts">${r.puntos ?? 0}</span>
+        </div>`;
+    }).join('');
+
+    cont.innerHTML = `
+      <div class="pos-row is-head">
+        <span>#</span><span>Equipo</span><span>PJ</span><span>DG</span><span>Pts</span>
       </div>
       ${filas}`;
   }
@@ -1311,12 +1371,13 @@
     setInterval(async () => {
       if (document.hidden) return;
       try {
-        await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos()]);
+        await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPosiciones()]);
         renderCabecera();
         renderBote();
         renderEnVivo();
         renderTabla();
         renderTodos();
+        renderPosiciones();
         // Si la jornada acaba de terminar justo mientras miraban en vivo,
         // este es el momento de sacar la felicitación.
         revisarGanadorPopup();
