@@ -120,22 +120,26 @@ tabla.
 2. Ejecuta `migracion-pagos-pendientes.sql`. Crea la tabla privada de
    solicitudes, el bucket de comprobantes y la función segura que publica los
    nueve picks al aprobarlos.
-3. En **Authentication → Providers → Email**, confirma que Email está
+3. Ejecuta `migracion-dashboard-admin.sql`. Agrega las acciones seguras de
+   rechazar una solicitud y borrar una quiniela solo de la jornada actual;
+   nunca elimina al participante ni sus jornadas anteriores.
+4. En **Authentication → Providers → Email**, confirma que Email está
    habilitado. Luego en **Authentication → Users → Add user**, elige crear un
    usuario (no enviar invitación) con el mismo correo que agregaste a
    `admins`; ahí es donde eliges su contraseña. Activa **Auto Confirm User**
    si te aparece. Así este acceso no depende del correo que está fallando.
    Si tu panel no muestra esa opción, desactiva temporalmente **Confirm
    email** dentro del proveedor Email mientras creas este único usuario.
-4. En `config.js`, completa `ADMIN_LOGIN.email` con ese correo y llena los
+5. En `config.js`, completa `ADMIN_LOGIN.email` con ese correo y llena los
    datos reales en `PAGO`. El usuario visible ya viene como `jonawow`.
    La contraseña no se escribe en código, `config.js` ni GitHub.
-5. Sube los cambios. Entra al panel con `https://TU-SITIO/#admin`, usuario
+6. Sube los cambios. Entra al panel con `https://TU-SITIO/#admin`, usuario
    `jonawow` y la contraseña que creaste.
 
 Los jugadores eligen sus nueve picks, ven la cuenta de depósito, suben una
 captura JPG/PNG/WEBP de hasta 5 MB y esperan la aprobación. El panel muestra
-esa captura con el botón **Confirmar depósito y publicar**. En
+esa captura junto con los nueve picks, los escudos de los equipos y acciones
+para aprobar, rechazar o borrar solo la quiniela de esa jornada. En
 **Pronósticos de todos**, el botón **Guardar PDF** abre la impresión del
 navegador para guardar la captura de la jornada como PDF.
 

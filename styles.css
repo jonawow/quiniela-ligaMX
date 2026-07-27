@@ -1766,6 +1766,179 @@ main {
 
 .admin-salir:hover { color: var(--live); }
 
+/* ── Dashboard de administración ──────────────────────────────────────
+   No es una tarjeta flotante: ocupa la pantalla completa y deja a la vista
+   todo lo necesario para revisar depósitos y quinielas sin perder contexto. */
+.admin-overlay {
+  z-index: 80;
+  display: block;
+  padding: 0;
+  background: var(--bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.admin-panel {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  animation: admin-in .35s var(--ease);
+}
+
+@keyframes admin-in { from { opacity: 0; transform: translateY(10px); } }
+
+.admin-sidebar {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px 18px;
+  background: color-mix(in srgb, var(--bg-2) 92%, var(--accent) 8%);
+  border-right: 1px solid var(--stroke);
+}
+
+.admin-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 30px; }
+.admin-brand-mark {
+  width: 34px; height: 34px; display: grid; place-items: center; flex: none;
+  border-radius: 11px; font-weight: 900; color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.admin-brand b, .admin-brand small { display: block; }
+.admin-brand b { font-size: .88rem; line-height: 1.1; }
+.admin-brand small { margin-top: 2px; color: var(--text-3); font-size: .68rem; }
+
+.admin-nav { display: grid; gap: 4px; }
+.admin-nav a {
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text-2);
+  font-size: .82rem;
+  font-weight: 700;
+  transition: background .2s, color .2s, transform .2s var(--ease-back);
+}
+.admin-nav a:hover, .admin-nav a:focus-visible { color: var(--text); background: var(--glass-2); transform: translateX(2px); }
+
+.admin-sidebar-foot {
+  display: grid;
+  gap: 9px;
+  margin-top: auto;
+  padding: 15px 8px 2px;
+  border-top: 1px solid var(--stroke);
+}
+.admin-sidebar-foot > span { overflow: hidden; color: var(--text-3); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-sidebar .admin-salir { width: fit-content; font-size: .74rem; }
+
+.admin-workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.admin-head { align-items: center; padding: 20px clamp(20px, 4vw, 46px); background: color-mix(in srgb, var(--bg) 82%, transparent); }
+.admin-head h2 { font-size: clamp(1.42rem, 2.5vw, 1.9rem); }
+.admin-close { width: 38px; height: 38px; font-size: 1.55rem; }
+.admin-body { min-width: 0; padding: clamp(22px, 4vw, 42px) clamp(20px, 4vw, 46px) 60px; overflow: auto; overscroll-behavior: contain; }
+
+.admin-summary { display: grid; grid-template-columns: minmax(190px, .75fr) minmax(0, 1.25fr); gap: 24px; align-items: end; margin-bottom: 42px; }
+.admin-summary-copy h3 { margin: 5px 0 9px; font-size: clamp(1.75rem, 3vw, 2.5rem); }
+.admin-summary-copy p { max-width: 38rem; color: var(--text-2); font-size: .88rem; line-height: 1.55; }
+.admin-kpis { display: grid; grid-template-columns: repeat(4, minmax(105px, 1fr)); gap: 10px; }
+.admin-kpi { min-width: 0; padding: 14px; border: 1px solid var(--stroke); border-radius: var(--r-md); background: var(--glass); }
+.admin-kpi span, .admin-kpi small { display: block; color: var(--text-3); font-size: .68rem; font-weight: 650; }
+.admin-kpi strong { display: block; overflow: hidden; margin: 3px 0 1px; color: var(--text); font-size: clamp(1.15rem, 2vw, 1.55rem); letter-spacing: -.06em; text-overflow: ellipsis; white-space: nowrap; }
+
+.admin-section { margin: 0 0 44px; scroll-margin-top: 18px; }
+.admin-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
+.admin-section-head h3 { margin: 4px 0; font-size: 1.18rem; }
+.admin-section-head p { max-width: 48rem; color: var(--text-3); font-size: .8rem; line-height: 1.5; }
+.admin-count { display: grid; min-width: 30px; height: 30px; padding: 0 9px; place-items: center; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent); font-size: .78rem; font-weight: 800; }
+
+.admin-review-list, .admin-quinielas-grid { display: grid; gap: 12px; }
+.admin-review-card, .admin-quiniela-card {
+  min-width: 0;
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  box-shadow: var(--shadow-1);
+}
+.admin-review-card { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); overflow: hidden; }
+.admin-proof { min-height: 100%; border: 0; border-radius: 0; background: color-mix(in srgb, var(--bg-2) 78%, var(--accent) 8%); }
+.admin-proof img { width: 100%; height: 100%; min-height: 180px; object-fit: cover; transition: transform .35s var(--ease); }
+.admin-proof:hover img { transform: scale(1.035); }
+.admin-proof-empty { display: grid; place-items: center; min-height: 180px; color: var(--text-3); font-size: .76rem; text-align: center; }
+.admin-review-main, .admin-quiniela-card { padding: 17px; }
+.admin-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.admin-player { display: flex; align-items: center; min-width: 0; gap: 10px; }
+.admin-player .avatar { flex: none; }
+.admin-player h4 { overflow: hidden; font-size: .94rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-player p { margin-top: 2px; color: var(--text-3); font-size: .71rem; }
+.admin-status { flex: none; padding: 4px 8px; border-radius: var(--r-full); font-size: .66rem; font-weight: 800; white-space: nowrap; }
+.admin-status.is-pending { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
+.admin-status.is-approved { color: var(--accent); background: var(--accent-soft); }
+.admin-status.is-unpaid { color: var(--text-3); background: var(--glass-2); }
+
+.admin-picks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.admin-pick { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 160px; padding: 5px 8px 5px 5px; border: 1px solid var(--stroke); border-radius: var(--r-full); background: var(--bg-2); }
+.admin-pick img, .admin-pick b { width: 24px; height: 24px; flex: none; object-fit: contain; }
+.admin-pick b { display: grid; place-items: center; border-radius: 50%; background: var(--glass-2); color: var(--text-2); font-size: .54rem; }
+.admin-pick i { overflow: hidden; color: var(--text-2); font-size: .67rem; font-style: normal; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.admin-pick.is-draw { max-width: 180px; gap: 4px; padding-right: 5px; }
+.admin-pick.is-draw i { padding: 0 2px; color: var(--text-3); font-size: .61rem; }
+.admin-no-picks { color: var(--text-3); font-size: .76rem; }
+
+.admin-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 17px; }
+.admin-actions .btn { min-height: 38px; padding: 8px 12px; font-size: .75rem; }
+.admin-secondary, .admin-danger, .admin-link-action { border: 1px solid var(--stroke); border-radius: 10px; font-size: .72rem; font-weight: 750; }
+.admin-secondary { color: var(--text-2); background: var(--glass-2); }
+.admin-secondary:hover { color: var(--live); border-color: color-mix(in srgb, var(--live) 45%, transparent); }
+.admin-quinielas-grid { grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); }
+.admin-quiniela-card { display: flex; flex-direction: column; min-height: 205px; }
+.admin-actions-bottom { margin-top: auto; padding-top: 15px; border-top: 1px solid var(--stroke); }
+.admin-link-action { padding: 7px 9px; color: var(--text-2); background: transparent; }
+.admin-link-action:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.admin-danger { padding: 7px 9px; color: var(--live); background: color-mix(in srgb, var(--live) 7%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
+.admin-danger:hover { background: color-mix(in srgb, var(--live) 16%, transparent); }
+
+.admin-results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 10px; }
+.admin-results-grid .adm-partido { height: 100%; margin: 0; padding: 15px; }
+.admin-empty { display: grid; min-height: 116px; place-items: center; gap: 5px; padding: 20px; border: 1px dashed var(--stroke-2); border-radius: var(--r-lg); color: var(--text-3); text-align: center; }
+.admin-empty b { color: var(--text-2); font-size: .86rem; }
+.admin-empty span { font-size: .75rem; }
+
+.admin-body > .admin-login { max-width: 410px; margin: clamp(30px, 12vh, 110px) auto; padding: 30px; border: 1px solid var(--stroke); border-radius: var(--r-lg); background: var(--glass); box-shadow: var(--shadow-2); }
+
+@media (max-width: 900px) {
+  .admin-panel { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .admin-sidebar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 16px; border-right: 0; border-bottom: 1px solid var(--stroke); }
+  .admin-brand { padding: 0; }
+  .admin-brand small { display: none; }
+  .admin-nav { display: flex; justify-content: center; overflow: auto; gap: 3px; }
+  .admin-nav a { padding: 7px 9px; font-size: .72rem; white-space: nowrap; }
+  .admin-sidebar-foot { display: block; margin: 0; padding: 0; border: 0; }
+  .admin-sidebar-foot > span { display: none; }
+  .admin-workspace { grid-row: 2; }
+  .admin-summary { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .admin-sidebar { grid-template-columns: 1fr auto; }
+  .admin-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
+  .admin-brand { padding-left: 2px; }
+  .admin-head { padding: 15px 18px; }
+  .admin-body { padding: 23px 16px 46px; }
+  .admin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-kpi { padding: 12px; }
+  .admin-review-card { grid-template-columns: 1fr; }
+  .admin-proof img, .admin-proof-empty { min-height: 170px; max-height: 230px; }
+  .admin-quinielas-grid, .admin-results-grid { grid-template-columns: 1fr; }
+  .admin-actions { align-items: stretch; flex-direction: column-reverse; }
+  .admin-actions .btn, .admin-secondary, .admin-danger, .admin-link-action { width: 100%; }
+  .admin-actions-bottom { align-items: stretch; }
+  .admin-pick { max-width: 135px; }
+}
+
 /* ── Dónde ver el partido ───────────────────────────────────────────── */
 
 .tv-chip {

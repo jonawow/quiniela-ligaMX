@@ -128,11 +128,10 @@ drop policy if exists admin_toca_config on config;
 create policy admin_toca_config on config
   for update using (es_admin()) with check (es_admin());
 
--- Borrar a alguien (una prueba, un duplicado). Sus pronósticos se van
--- solos detrás: la base los tiene amarrados con "on delete cascade".
+-- No hay permiso para borrar participantes completos desde el dashboard.
+-- Si hace falta retirar una quiniela, migracion-dashboard-admin.sql instala
+-- una función que elimina únicamente los picks y pago de esa jornada.
 drop policy if exists admin_borra_participantes on participantes;
-create policy admin_borra_participantes on participantes
-  for delete using (es_admin());
 
 -- OJO: los jugadores normales SIGUEN sin poder editar ni borrar nada.
 -- Sus pronósticos son inmutables igual que siempre. Lo único que cambia es

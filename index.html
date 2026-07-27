@@ -459,17 +459,41 @@
        hace algo si tu correo está en la lista de admins. Que se "vea" no
        sirve de nada: cada escritura la autoriza la base, no esta pantalla. -->
   <div class="admin-overlay" id="admin-overlay" hidden>
-    <div class="admin-panel glass" role="dialog" aria-modal="true" aria-labelledby="admin-title">
-      <div class="admin-head">
-        <div>
-          <span class="eyebrow">Panel privado</span>
-          <h2 class="display" id="admin-title">Administración</h2>
+    <div class="admin-panel" aria-labelledby="admin-title">
+      <aside class="admin-sidebar" aria-label="Navegación de administración">
+        <div class="admin-brand">
+          <span class="admin-brand-mark">J</span>
+          <div>
+            <b>Quiniela MX</b>
+            <small>Administración</small>
+          </div>
         </div>
-        <button class="admin-close" id="admin-close" type="button" aria-label="Cerrar">&times;</button>
-      </div>
 
-      <div class="admin-body" id="admin-body">
-        <div class="empty">Cargando…</div>
+        <nav class="admin-nav">
+          <a href="#admin-resumen">Resumen</a>
+          <a href="#admin-depositos">Depósitos</a>
+          <a href="#admin-quinielas">Quinielas</a>
+          <a href="#admin-resultados">Resultados</a>
+        </nav>
+
+        <div class="admin-sidebar-foot">
+          <span id="admin-session">Sesión privada</span>
+          <button class="admin-salir" id="admin-salir" type="button">Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <div class="admin-workspace">
+        <header class="admin-head">
+          <div>
+            <span class="eyebrow">Panel privado</span>
+            <h2 class="display" id="admin-title">Dashboard</h2>
+          </div>
+          <button class="admin-close" id="admin-close" type="button" aria-label="Volver a la quiniela">&times;</button>
+        </header>
+
+        <main class="admin-body" id="admin-body">
+          <div class="empty">Cargando…</div>
+        </main>
       </div>
     </div>
   </div>

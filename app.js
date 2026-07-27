@@ -238,7 +238,7 @@
 
   async function cargarTodos() {
     const { data } = await S.sb.from('pronosticos')
-      .select('partido_id, pick, participantes(nombre)')
+      .select('partido_id, pick, participante_id, participantes(nombre)')
       .eq('jornada_id', S.jornada.id);
     S.todos = data || [];
 
@@ -1654,10 +1654,13 @@
     const abrir = () => { overlay.hidden = false; pintarAdmin(); };
     const cerrar = () => {
       overlay.hidden = true;
-      if (location.hash === '#admin') history.replaceState(null, '', location.pathname + location.search);
+      if (location.hash.startsWith('#admin')) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
     };
 
     $('#admin-close').addEventListener('click', cerrar);
+    $('#admin-salir').addEventListener('click', salirAdmin);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) cerrar(); });
     addEventListener('hashchange', () => { if (location.hash === '#admin') abrir(); });
@@ -1674,6 +1677,8 @@
     body.innerHTML = '<div class="empty">Cargando…</div>';
 
     const { data: { session } } = await S.sb.auth.getSession();
+    const sesion = $('#admin-session');
+    if (sesion) sesion.textContent = session?.user?.email || 'Sin sesión iniciada';
 
     if (!session) return pintarLogin(body);
 
@@ -1698,7 +1703,7 @@
       return;
     }
 
-    await pintarHerramientas(body, session);
+    await pintarDashboardAdmin(body, session);
   }
 
   function pintarLogin(body) {
@@ -1773,7 +1778,154 @@
     return solicitudes.map((s) => ({ ...s, comprobante_url: porRuta[s.comprobante_path] || '' }));
   }
 
-  async function pintarHerramientas(body, session) {
+  function fechaAdmin(iso) {
+    const fecha = new Date(iso);
+    if (isNaN(fecha)) return 'Fecha no disponible';
+    return fecha.toLocaleString('es-MX', {
+      timeZone: 'America/Mexico_City', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  // La vista del admin no usa letras sueltas: cada pick muestra el equipo y
+  // su escudo para que revisar nueve partidos sea rapido y sin ambiguedades.
+  function picksAdmin(picks) {
+    const porId = Object.fromEntries(S.partidos.map((p) => [String(p.id), p]));
+    const orden = Object.fromEntries(S.partidos.map((p, i) => [String(p.id), i]));
+    const listos = (Array.isArray(picks) ? picks : [])
+      .filter((item) => item && porId[String(item.partido_id)] && ['L', 'E', 'V'].includes(item.pick))
+      .sort((a, b) => (orden[String(a.partido_id)] ?? 99) - (orden[String(b.partido_id)] ?? 99));
+
+    if (!listos.length) return '<span class="admin-no-picks">Sin picks legibles.</span>';
+
+    const logo = (url, nombre) => url
+      ? `<img src="${esc(url)}" alt="${esc(nombre)}" loading="lazy">`
+      : `<b>${esc(String(nombre).slice(0, 3).toUpperCase())}</b>`;
+
+    return listos.map((item) => {
+      const partido = porId[String(item.partido_id)];
+      const etiqueta = `${partido.local} vs ${partido.visitante}`;
+      if (item.pick === 'E') {
+        return `<span class="admin-pick is-draw" title="${esc(etiqueta)}: Empate">
+          ${logo(partido.local_logo, partido.local)}<i>Empate</i>${logo(partido.visitante_logo, partido.visitante)}
+        </span>`;
+      }
+      const equipo = item.pick === 'L' ? partido.local : partido.visitante;
+      const imagen = item.pick === 'L' ? partido.local_logo : partido.visitante_logo;
+      return `<span class="admin-pick" title="${esc(etiqueta)}: Gana ${esc(equipo)}">
+        ${logo(imagen, equipo)}<i>${esc(equipo)}</i>
+      </span>`;
+    }).join('');
+  }
+
+  function quinielasPublicadasAdmin() {
+    const porPersona = new Map();
+    (S.todos || []).forEach((row) => {
+      const id = row.participante_id;
+      const nombre = row.participantes?.nombre || 'Sin nombre';
+      const llave = id == null ? `nombre:${nombre}` : `id:${id}`;
+      if (!porPersona.has(llave)) porPersona.set(llave, { id, nombre, picks: [] });
+      porPersona.get(llave).picks.push(row);
+    });
+    return [...porPersona.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  async function pintarDashboardAdmin(body, session) {
+    let solicitudes;
+    try {
+      solicitudes = await cargarSolicitudesAdmin();
+    } catch (err) {
+      body.innerHTML = `<div class="alert is-err"><b>No se pudieron cargar los comprobantes.</b>
+        Ejecuta <code>migracion-pagos-pendientes.sql</code> en Supabase. (${esc(err.message)})</div>`;
+      return;
+    }
+
+    const sesion = $('#admin-session');
+    if (sesion) sesion.textContent = session.user.email || 'Sesión privada';
+
+    const publicadas = quinielasPublicadasAdmin();
+    const cuota = montoPago();
+    const bote = publicadas.length * Number(S.cfg.cuota_bote || 0);
+    const cobrado = publicadas.filter((p) => S.pagos[p.id]).length * cuota;
+    const sugerenciasTv = CANALES.map((c) => `<option value="${esc(c)}"></option>`).join('');
+
+    const tarjetaSolicitud = (s) => {
+      const comprobante = s.comprobante_url
+        ? `<a class="admin-proof" href="${esc(s.comprobante_url)}" target="_blank" rel="noopener noreferrer" title="Abrir comprobante completo">
+            <img src="${esc(s.comprobante_url)}" alt="Comprobante de ${esc(s.nombre)}"></a>`
+        : '<div class="admin-proof admin-proof-empty">No se pudo abrir la captura.</div>';
+      return `<article class="admin-review-card">
+        ${comprobante}
+        <div class="admin-review-main">
+          <div class="admin-card-top">
+            <div class="admin-player"><span class="avatar">${esc(iniciales(s.nombre))}</span><div><h4>${esc(s.nombre)}</h4><p>Comprobante recibido ${esc(fechaAdmin(s.creado_at))}</p></div></div>
+            <span class="admin-status is-pending">Por revisar</span>
+          </div>
+          <div class="admin-picks" aria-label="Picks de ${esc(s.nombre)}">${picksAdmin(s.picks)}</div>
+          <div class="admin-actions">
+            <button class="btn admin-secondary" type="button" data-rechazar="${esc(s.id)}" data-nombre="${esc(s.nombre)}">Rechazar solicitud</button>
+            <button class="btn btn-primary" type="button" data-publicar="${esc(s.id)}">Aprobar depósito y publicar</button>
+          </div>
+        </div>
+      </article>`;
+    };
+
+    const tarjetaQuiniela = (persona) => {
+      const pagado = Boolean(S.pagos[persona.id]);
+      const eliminar = persona.id == null ? '' : `<button class="admin-danger" type="button" data-eliminar="${esc(persona.id)}" data-nombre="${esc(persona.nombre)}">Eliminar quiniela</button>`;
+      return `<article class="admin-quiniela-card">
+        <div class="admin-card-top">
+          <div class="admin-player"><span class="avatar">${esc(iniciales(persona.nombre))}</span><div><h4>${esc(persona.nombre)}</h4><p>${persona.picks.length} de ${S.partidos.length} pronósticos publicados</p></div></div>
+          <span class="admin-status ${pagado ? 'is-approved' : 'is-unpaid'}">${pagado ? 'Depósito aprobado' : 'Sin marcar pago'}</span>
+        </div>
+        <div class="admin-picks" aria-label="Picks de ${esc(persona.nombre)}">${picksAdmin(persona.picks)}</div>
+        <div class="admin-actions admin-actions-bottom">
+          ${persona.id == null ? '' : `<button class="admin-link-action" type="button" data-pago="${esc(persona.id)}">${pagado ? 'Marcar como no pagado' : 'Marcar como pagado'}</button>`}
+          ${eliminar}
+        </div>
+      </article>`;
+    };
+
+    const tarjetaPartido = (p) => {
+      const boton = (valor, texto) => `<button class="adm-res${p.resultado === valor ? ' is-on' : ''}" type="button" data-res="${valor}" data-id="${p.id}">${esc(texto)}</button>`;
+      return `<article class="adm-partido${p.manual ? ' es-manual' : ''}">
+        <div class="adm-cab"><span>${esc(p.local)} vs ${esc(p.visitante)}</span><small>${esc(fechaCorta(p.fecha))}</small>${p.manual ? '<span class="adm-tag">manual</span>' : ''}</div>
+        <div class="adm-fila"><span class="adm-mini">Resultado</span>${boton('L', 'Gana ' + (p.local_abbr || p.local))}${boton('E', 'Empate')}${boton('V', 'Gana ' + (p.visitante_abbr || p.visitante))}${p.manual ? `<button class="adm-res" type="button" data-auto="${p.id}">Automático</button>` : ''}</div>
+        <div class="adm-fila"><span class="adm-mini">Dónde ver</span><input class="adm-tv" data-tv="${p.id}" list="canales-lista" type="text" value="${esc(p.tv || '')}" placeholder="Ej. Canal 5, TUDN, ViX" spellcheck="false"></div>
+      </article>`;
+    };
+
+    body.innerHTML = `
+      <datalist id="canales-lista">${sugerenciasTv}</datalist>
+      <section class="admin-summary" id="admin-resumen">
+        <div class="admin-summary-copy"><span class="eyebrow">Jornada ${esc(S.jornada?.numero ?? '')}</span><h3 class="display">Todo bajo control.</h3><p>Revisa primero los depósitos. Solo después de aprobarlos se publica la quiniela de cada persona.</p></div>
+        <div class="admin-kpis">
+          <article class="admin-kpi"><span>Por revisar</span><strong>${solicitudes.length}</strong><small>depósitos pendientes</small></article>
+          <article class="admin-kpi"><span>Publicadas</span><strong>${publicadas.length}</strong><small>quinielas activas</small></article>
+          <article class="admin-kpi"><span>Recaudado</span><strong>${money(cobrado)}</strong><small>de ${money(cuota)} c/u</small></article>
+          <article class="admin-kpi"><span>Bote actual</span><strong>${money(bote)}</strong><small>solo cuota de bote</small></article>
+        </div>
+      </section>
+
+      <section class="admin-section" id="admin-depositos">
+        <div class="admin-section-head"><div><span class="eyebrow">Acción requerida</span><h3>Depósitos por revisar</h3><p>Abre la captura, compara el depósito y aprueba para publicar sus picks.</p></div><span class="admin-count">${solicitudes.length}</span></div>
+        <div class="admin-review-list">${solicitudes.map(tarjetaSolicitud).join('') || '<div class="admin-empty"><b>No hay depósitos pendientes.</b><span>Cuando alguien suba su comprobante aparecerá aquí.</span></div>'}</div>
+      </section>
+
+      <section class="admin-section" id="admin-quinielas">
+        <div class="admin-section-head"><div><span class="eyebrow">Quinielas visibles</span><h3>Pronósticos publicados</h3><p>Aquí ves exactamente los equipos elegidos por cada jugador. Eliminar solo quita su quiniela de esta jornada.</p></div><span class="admin-count">${publicadas.length}</span></div>
+        <div class="admin-quinielas-grid">${publicadas.map(tarjetaQuiniela).join('') || '<div class="admin-empty"><b>Aún no hay quinielas publicadas.</b><span>Aprueba un depósito para que aparezca la primera.</span></div>'}</div>
+      </section>
+
+      <section class="admin-section" id="admin-resultados">
+        <div class="admin-section-head"><div><span class="eyebrow">Control de jornada</span><h3>Resultados y transmisiones</h3><p>ESPN actualiza los marcadores. Usa una corrección manual solo cuando haga falta.</p></div></div>
+        <div class="admin-results-grid">${S.partidos.map(tarjetaPartido).join('') || '<div class="admin-empty">Sin partidos cargados.</div>'}</div>
+      </section>`;
+
+    conectarAdmin(body);
+  }
+
+  async function pintarHerramientasLegacy(body, session) {
     let solicitudes;
     try {
       solicitudes = await cargarSolicitudesAdmin();
@@ -1891,10 +2043,26 @@
       const pago = e.target.closest('[data-pago]');
       const borrar = e.target.closest('[data-borrar]');
       const publicar = e.target.closest('[data-publicar]');
+      const rechazar = e.target.closest('[data-rechazar]');
+      const eliminar = e.target.closest('[data-eliminar]');
 
       if (publicar) {
         if (!confirm('¿Ya revisaste el comprobante?\n\nAl confirmar se publican sus 9 pronósticos y ya no se pueden cambiar.')) return;
         await publicarSolicitud(publicar.dataset.publicar);
+        return;
+      }
+
+      if (rechazar) {
+        const nombre = rechazar.dataset.nombre || 'esta persona';
+        if (!confirm(`¿Rechazar la solicitud de ${nombre}?\n\nSe quitarán la captura y los picks pendientes. Podrá enviarla de nuevo con un comprobante correcto.`)) return;
+        await rechazarSolicitudAdmin(rechazar.dataset.rechazar);
+        return;
+      }
+
+      if (eliminar) {
+        const nombre = eliminar.dataset.nombre || 'esta persona';
+        if (!confirm(`¿Eliminar la quiniela de ${nombre} para esta jornada?\n\nSolo se borran sus pronósticos y pago de la jornada actual. Sus datos y jornadas anteriores se conservan.`)) return;
+        await eliminarQuinielaAdmin(Number(eliminar.dataset.eliminar));
         return;
       }
 
@@ -1948,9 +2116,6 @@
         S.sb.from('partidos').update({ tv: tv.value || null }).eq('id', tv.dataset.tv),
         tv.value ? `Se transmite por ${tv.value}.` : 'Canal quitado.');
     });
-
-    const salir = $('#admin-salir');
-    if (salir) salir.addEventListener('click', salirAdmin);
   }
 
   async function publicarSolicitud(id) {
@@ -1961,6 +2126,33 @@
     }
 
     toast('Depósito confirmado: la quiniela ya está publicada.', 'ok');
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
+    render();
+    await pintarAdmin();
+  }
+
+  async function rechazarSolicitudAdmin(id) {
+    const { error } = await S.sb.rpc('rechazar_solicitud_quiniela', { p_solicitud: id });
+    if (error) {
+      toast(error.message || 'No se pudo rechazar la solicitud. Ejecuta migracion-dashboard-admin.sql.', 'err');
+      return;
+    }
+
+    toast('Solicitud rechazada. Ya puede enviar una nueva captura.', 'ok');
+    await pintarAdmin();
+  }
+
+  async function eliminarQuinielaAdmin(participanteId) {
+    const { error } = await S.sb.rpc('borrar_pronostico_jornada', {
+      p_participante_id: participanteId,
+      p_jornada_id: S.jornada.id
+    });
+    if (error) {
+      toast(error.message || 'No se pudo borrar la quiniela. Ejecuta migracion-dashboard-admin.sql.', 'err');
+      return;
+    }
+
+    toast('Quiniela eliminada solo de esta jornada.', 'ok');
     await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
     render();
     await pintarAdmin();
