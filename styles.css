@@ -110,6 +110,11 @@ body {
   overflow-x: hidden;
 }
 
+/* Cuando el dashboard está abierto, la página pública se queda quieta.
+   El único scroll disponible es el de su contenido administrativo. */
+html.admin-open,
+body.admin-open { overflow: hidden; }
+
 /* ── El candado del cambio de tema ───────────────────────────────────────
    Al cambiar de tema, CADA color de la página cambia a la vez. Y como medio
    sitio tiene transiciones (bordes, botones, tarjetas), sin este candado el

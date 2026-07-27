@@ -1651,9 +1651,16 @@
     const overlay = $('#admin-overlay');
     if (!overlay) return;
 
-    const abrir = () => { overlay.hidden = false; pintarAdmin(); };
+    const abrir = () => {
+      overlay.hidden = false;
+      document.documentElement.classList.add('admin-open');
+      document.body.classList.add('admin-open');
+      pintarAdmin();
+    };
     const cerrar = () => {
       overlay.hidden = true;
+      document.documentElement.classList.remove('admin-open');
+      document.body.classList.remove('admin-open');
       if (location.hash.startsWith('#admin')) {
         history.replaceState(null, '', location.pathname + location.search);
       }
