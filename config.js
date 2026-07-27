@@ -38,19 +38,19 @@ window.QMX_CONFIG = {
   // La contraseña NUNCA se escribe aquí ni se sube a GitHub.
   ADMIN_LOGIN: {
     usuario: 'jonawow',
-    email: 'PON_AQUI_EL_CORREO_DEL_ADMIN_EN_SUPABASE'
+    email: 'jonathan.mtz27@gmail.com'
   },
 
   // Datos visibles para quien vaya a hacer el depósito. Completa los campos
   // reales antes de publicar. `monto` es el total que se cobra.
   PAGO: {
     monto: 52,
-    titular: 'PON_AQUI_EL_NOMBRE_DEL_TITULAR',
-    banco: 'PON_AQUI_EL_BANCO',
+    titular: 'Jonathan',
+    banco: 'STP',
     cuenta: '',
-    clabe: '',
+    clabe: '728969000024189401',
     tarjeta: '',
-    referencia: ''
+    referencia: 'Quiniela_nombre'
   }
 
   // ── ¿Y el panel de admin? ────────────────────────────────────────────
