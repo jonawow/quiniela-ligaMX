@@ -1413,6 +1413,7 @@ main {
 .footer-brand strong { font-size: 1rem; font-weight: 750; letter-spacing: -.02em; }
 .footer-brand span { font-size: .82rem; color: var(--text-3); }
 .footer-legal { font-size: .78rem; color: var(--text-3); max-width: 62ch; line-height: 1.55; }
+.footer-credit { color: var(--accent); font-size: .72rem; font-weight: 750; letter-spacing: .04em; }
 
 /* ── Modal de depósito ─────────────────────────────────────────────────── */
 
