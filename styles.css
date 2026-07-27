@@ -1773,6 +1773,7 @@ main {
   z-index: 80;
   display: block;
   padding: 0;
+  overflow: hidden;
   background: var(--bg);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -1785,6 +1786,7 @@ main {
   max-height: none;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 0;
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -1835,11 +1837,22 @@ main {
 .admin-sidebar-foot > span { overflow: hidden; color: var(--text-3); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
 .admin-sidebar .admin-salir { width: fit-content; font-size: .74rem; }
 
-.admin-workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.admin-workspace { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .admin-head { align-items: center; padding: 20px clamp(20px, 4vw, 46px); background: color-mix(in srgb, var(--bg) 82%, transparent); }
 .admin-head h2 { font-size: clamp(1.42rem, 2.5vw, 1.9rem); }
 .admin-close { width: 38px; height: 38px; font-size: 1.55rem; }
-.admin-body { min-width: 0; padding: clamp(22px, 4vw, 42px) clamp(20px, 4vw, 46px) 60px; overflow: auto; overscroll-behavior: contain; }
+.admin-body {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  padding: clamp(22px, 4vw, 42px) clamp(20px, 4vw, 46px) 60px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 
 .admin-summary { display: grid; grid-template-columns: minmax(190px, .75fr) minmax(0, 1.25fr); gap: 24px; align-items: end; margin-bottom: 42px; }
 .admin-summary-copy h3 { margin: 5px 0 9px; font-size: clamp(1.75rem, 3vw, 2.5rem); }
