@@ -29,6 +29,7 @@
     picks: {},        // { [partidoId]: 'L' | 'E' | 'V' }
     enviado: false,   // ya mandó su pronóstico de esta jornada
     enviando: false,  // hay un envío en vuelo (lo único que apaga el botón)
+    solicitud: null,  // depósito/comprobante enviado, aún sin publicar
     tabla: [],
     todos: [],
     pagos: {},        // { [participanteId]: true } — solo lo usa el panel
@@ -168,6 +169,7 @@
     arrancarReloj();
     arrancarSondeo();
     conectarEventos();
+    initPagoModal();
     initAdmin();
     initGanadorModal();
     initHistorico();
@@ -213,6 +215,7 @@
     if (S.jornada) {
       S.picks = store.get('picks-' + S.jornada.id, {});
       S.enviado = store.get('enviado-' + S.jornada.id, false);
+      S.solicitud = store.get('solicitud-' + S.jornada.id, null);
     }
   }
 
@@ -238,6 +241,17 @@
       .select('partido_id, pick, participantes(nombre)')
       .eq('jornada_id', S.jornada.id);
     S.todos = data || [];
+
+    // La solicitud es privada, pero cuando el admin la publica los picks ya
+    // aparecen en la tabla pública. Esa es la señal segura para desbloquear
+    // este mismo navegador sin exponer solicitudes pendientes a nadie.
+    if (S.solicitud && S.todos.some((r) =>
+      slugify(r.participantes?.nombre) === S.solicitud.slug)) {
+      S.enviado = true;
+      S.solicitud = null;
+      store.set('enviado-' + S.jornada.id, true);
+      store.set('solicitud-' + S.jornada.id, null);
+    }
   }
 
   // ── Tabla de posiciones de la Liga MX ────────────────────────────────
@@ -449,9 +463,12 @@
       return;
     }
 
-    if (cerrada && S.enviado) {
+    if (S.enviado && cerrada) {
       alerta('<b>Ya quedó tu pronóstico.</b> La jornada cerró — ahora a ver los partidos. ' +
         'Tus aciertos se van marcando solos en <a href="#envivo">En vivo</a>.', 'ok');
+    } else if (S.solicitud) {
+      alerta('<b>Tu depósito está en revisión.</b> En cuanto el admin confirme el comprobante, ' +
+        'tu pronóstico se publicará automáticamente.', 'warn');
     } else if (cerrada) {
       alerta('<b>Esta jornada ya cerró.</b> Se cerró al arrancar el primer partido. ' +
         'Aquí abajo puedes ver cómo van, y la que sigue abre en cuanto termine esta.', 'warn');
@@ -462,12 +479,12 @@
 
     cont.innerHTML = S.partidos.map((p) => tarjetaPartido(p, cerrada)).join('');
 
-    $('#submit-bar').hidden = cerrada || S.enviado;
+    $('#submit-bar').hidden = cerrada || S.enviado || !!S.solicitud;
   }
 
   function tarjetaPartido(p, cerrada) {
     const pick = S.picks[p.id];
-    const bloqueado = cerrada || S.enviado;
+    const bloqueado = cerrada || S.enviado || !!S.solicitud;
 
     const logo = (url, nombre) => url
       ? `<img class="team-logo" src="${esc(url)}" alt="" loading="lazy">`
@@ -738,6 +755,55 @@
       '<div class="empty" style="grid-column:1/-1">Nadie pronosticó esta jornada.</div>';
   }
 
+  // No metemos una librería pesada solo para una hoja. El diálogo nativo de
+  // impresión permite "Guardar como PDF" en computadora y móvil, y esta
+  // vista aislada evita que se cuelen menús o botones en la captura.
+  function guardarPdfPronosticos() {
+    if (!S.todos.length) {
+      toast('Aún no hay pronósticos publicados para guardar.', 'err');
+      return;
+    }
+
+    const ventana = window.open('', 'qmx-pronosticos-pdf');
+    if (!ventana) {
+      toast('Tu navegador bloqueó la ventana del PDF. Permite las ventanas emergentes e inténtalo otra vez.', 'err');
+      return;
+    }
+
+    const tarjetas = htmlGridPicks(S.todos, S.partidos);
+    const titulo = `${CFG.NOMBRE || 'Quiniela MX'} · Jornada ${S.jornada.numero}`;
+    ventana.document.open();
+    ventana.document.write(`<!doctype html>
+      <html lang="es"><head><meta charset="utf-8"><title>${esc(titulo)}</title>
+      <style>
+        @page { size: A4; margin: 13mm; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #15251f; font-family: Arial, sans-serif; }
+        h1 { margin: 0; font-size: 23px; letter-spacing: -.6px; }
+        .sub { margin: 5px 0 20px; color: #527166; font-size: 12px; }
+        .todos-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .todo-card { break-inside: avoid; padding: 13px; border: 1px solid #cddbd4; border-radius: 12px; }
+        .todo-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+        .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #9de6c5; color: #123f2e; font-size: 11px; font-weight: 700; }
+        .todo-name { font-size: 13px; font-weight: 700; }
+        .todo-sub { margin-top: 1px; font-size: 10px; color: #527166; }
+        .todo-picks { display: flex; flex-wrap: wrap; gap: 5px; }
+        .chip { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid #d6e1db; border-radius: 8px; background: #f5faf7; overflow: hidden; }
+        .chip img { width: 22px; height: 22px; object-fit: contain; }
+        .chip-empate { display: flex; align-items: center; justify-content: center; gap: 1px; }
+        .chip-empate img { width: 11px; height: 11px; } .chip-empate i { font-size: 9px; font-style: normal; color: #527166; }
+        .chip.is-hit { background: #e5f8ee; border-color: #56bd8d; } .chip.is-miss { opacity: .55; }
+        @media print { .todos-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      </style></head><body>
+        <h1>${esc(titulo)}</h1>
+        <p class="sub">Pronósticos publicados · ${esc(S.cfg.torneo || '')}</p>
+        <div class="todos-grid">${tarjetas}</div>
+      </body></html>`);
+    ventana.document.close();
+    ventana.focus();
+    ventana.onload = () => setTimeout(() => ventana.print(), 350);
+  }
+
   // ── Salón de la fama: ganadores de jornadas pasadas ──────────────────
   function nombresLideres(lideres) {
     if (!lideres.length) return '';
@@ -878,9 +944,10 @@
     // Lo único que lo deshabilita de verdad es estar enviando.
     btn.classList.toggle('is-apagado', !listo);
     btn.setAttribute('aria-disabled', String(!listo));
-    btn.disabled = S.enviando === true;
+    btn.disabled = S.enviando === true || !!S.solicitud;
 
     if (S.enviando) { btn.textContent = 'Enviando…'; return; }
+    if (S.solicitud) { btn.textContent = 'Pago en revisión'; return; }
 
     const faltan = total - hechos;
     btn.textContent = !conNombre ? 'Escribe tu nombre'
@@ -927,6 +994,7 @@
     // Ponerlo en los dos lados lo dejaría muerto: el clic dispararía dos
     // veces, cambiaría el tema y lo regresaría en el mismo instante.
     $('#submit-btn').addEventListener('click', enviar);
+    $('#todos-pdf').addEventListener('click', guardarPdfPronosticos);
   }
 
   // ── Flechitas del menú en celular ────────────────────────────────────
@@ -993,59 +1061,180 @@
       return render();
     }
 
+    if (S.solicitud) {
+      toast('Tu comprobante ya está en revisión.', 'err');
+      return;
+    }
+
+    // Los picks se quedan privados en una solicitud hasta que el admin vea
+    // el comprobante. No hay ninguna inserción directa a `pronosticos` aquí.
+    abrirPagoModal(nombre);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  DEPÓSITO, COMPROBANTE Y SOLICITUD PENDIENTE
+  // ═════════════════════════════════════════════════════════════════════
+
+  function textoConfigurado(valor) {
+    return typeof valor === 'string' && valor.trim() && !/PON_AQUI/i.test(valor);
+  }
+
+  function montoPago() {
+    const monto = Number(CFG.PAGO?.monto);
+    return Number.isFinite(monto) && monto > 0
+      ? monto
+      : Number(S.cfg.cuota_bote) + Number(S.cfg.cuota_manejo);
+  }
+
+  function pagoConfigurado() {
+    const pago = CFG.PAGO || {};
+    const destino = pago.cuenta || pago.clabe || pago.tarjeta;
+    return textoConfigurado(pago.titular) && textoConfigurado(pago.banco) && textoConfigurado(destino);
+  }
+
+  function cuentaPagoHtml() {
+    const pago = CFG.PAGO || {};
+    const filas = [
+      ['Titular', pago.titular],
+      ['Banco', pago.banco],
+      ['Cuenta', pago.cuenta],
+      ['CLABE', pago.clabe],
+      ['Tarjeta', pago.tarjeta],
+      ['Referencia', pago.referencia]
+    ].filter(([, valor]) => textoConfigurado(valor));
+    return filas.map(([etiqueta, valor]) =>
+      `<div><span>${esc(etiqueta)}</span><b>${esc(valor)}</b></div>`).join('');
+  }
+
+  function initPagoModal() {
+    const overlay = $('#payment-overlay');
+    if (!overlay) return;
+
+    $('#payment-close').addEventListener('click', cerrarPagoModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrarPagoModal(); });
+    addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !overlay.hidden) cerrarPagoModal();
+    });
+  }
+
+  function abrirPagoModal(nombre) {
+    if (!pagoConfigurado()) {
+      toast('Falta configurar los datos de la cuenta de depósito.', 'err');
+      return;
+    }
+
+    const overlay = $('#payment-overlay');
+    const body = $('#payment-body');
+    if (!overlay || !body) return;
+
+    body.innerHTML = `
+      <span class="eyebrow">Último paso</span>
+      <h2 class="display" id="payment-title">Envía tu depósito</h2>
+      <p class="payment-lede">Debes depositar antes de que publiquemos tu quiniela. Sube una captura del comprobante y el admin revisará el pago.</p>
+      <div class="payment-total"><small>Total a depositar</small><strong>${money(montoPago())}</strong></div>
+      <div class="payment-account">${cuentaPagoHtml()}</div>
+      <label class="payment-file" id="payment-file-label">
+        <input id="payment-file" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
+        <strong id="payment-file-title">Subir captura del comprobante</strong>
+        <small id="payment-file-help">JPG, PNG o WEBP · máximo 5 MB. Puedes tomar la foto desde aquí.</small>
+      </label>
+      <p class="payment-note">Tu pronóstico queda apartado, pero no será visible ni contará en la tabla hasta que el admin confirme el depósito.</p>
+      <button class="btn btn-primary btn-lg payment-submit" id="payment-submit" type="button">Enviar comprobante y quiniela</button>`;
+
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    const input = $('#payment-file');
+    const label = $('#payment-file-label');
+    const title = $('#payment-file-title');
+    input.addEventListener('change', () => {
+      const archivo = input.files?.[0];
+      label.classList.toggle('is-ready', !!archivo);
+      title.textContent = archivo ? archivo.name : 'Subir captura del comprobante';
+    });
+
+    $('#payment-submit').addEventListener('click', () => enviarSolicitudPago(nombre));
+  }
+
+  function cerrarPagoModal() {
+    const overlay = $('#payment-overlay');
+    if (!overlay || overlay.hidden) return;
+    overlay.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function datosArchivoComprobante(archivo) {
+    const tipos = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp'
+    };
+    if (tipos[archivo.type]) return { tipo: archivo.type, extension: tipos[archivo.type] };
+    const extension = String(archivo.name || '').split('.').pop().toLowerCase();
+    const tipo = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[extension];
+    return tipo ? { tipo, extension: extension === 'jpeg' ? 'jpeg' : extension } : null;
+  }
+
+  async function enviarSolicitudPago(nombre) {
+    const input = $('#payment-file');
+    const btn = $('#payment-submit');
+    const archivo = input?.files?.[0];
+    const datosArchivo = archivo && datosArchivoComprobante(archivo);
+
+    if (!archivo || !datosArchivo) {
+      toast('Sube una captura JPG, PNG o WEBP del depósito.', 'err');
+      return;
+    }
+    if (archivo.size > 5 * 1024 * 1024) {
+      toast('La captura pesa más de 5 MB. Súbela un poco más ligera.', 'err');
+      return;
+    }
+
+    const solicitudId = window.crypto?.randomUUID?.()
+      || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.floor(Math.random() * 16);
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      });
+    const ruta = `pendientes/${S.jornada.id}/${solicitudId}.${datosArchivo.extension}`;
+    const picks = S.partidos.map((p) => ({ partido_id: Number(p.id), pick: S.picks[p.id] }));
+
     S.enviando = true;
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
     renderProgreso();
 
     try {
-      const participanteId = await obtenerParticipante(nombre);
+      const { error: errorArchivo } = await S.sb.storage.from('comprobantes-pago')
+        .upload(ruta, archivo, { cacheControl: '3600', upsert: false, contentType: datosArchivo.tipo });
+      if (errorArchivo) throw errorArchivo;
 
-      const filas = S.partidos.map((p) => ({
+      const { error: errorSolicitud } = await S.sb.from('solicitudes_quiniela').insert({
+        id: solicitudId,
         jornada_id: S.jornada.id,
-        partido_id: p.id,
-        participante_id: participanteId,
-        pick: S.picks[p.id]
-      }));
-
-      const { error } = await S.sb.from('pronosticos').insert(filas);
-
-      if (error) {
-        // 23505 = choca con el índice único: ya había pronosticado.
-        if (error.code === '23505') {
-          S.enviando = false;
-          S.enviado = true;
-          store.set('enviado-' + S.jornada.id, true);
-          toast('Ya habías enviado tu pronóstico de esta jornada.', 'err');
-          return render();
+        nombre,
+        slug: slugify(nombre),
+        picks,
+        comprobante_path: ruta
+      });
+      if (errorSolicitud) {
+        if (errorSolicitud.code === '23505') {
+          throw new Error('Ya existe una solicitud para este nombre en esta jornada.');
         }
-        // 42501 = el RLS lo rechazó: la jornada ya está cerrada del lado servidor.
-        if (error.code === '42501') {
-          S.enviando = false;
-          toast('La jornada ya cerró. El servidor no aceptó el pronóstico.', 'err');
-          await cargarJornada();
-          return render();
-        }
-        throw error;
+        throw errorSolicitud;
       }
 
-      S.enviando = false;
-
-      S.enviado = true;
-      store.set('enviado-' + S.jornada.id, true);
+      S.solicitud = { id: solicitudId, slug: slugify(nombre), creado_at: new Date().toISOString() };
+      store.set('solicitud-' + S.jornada.id, S.solicitud);
       store.set('nombre', nombre);
-
-      toast('¡Listo! Tu pronóstico quedó guardado. Suerte 🍀', 'ok');
-
-      await Promise.all([cargarTabla(), cargarTodos()]);
+      cerrarPagoModal();
+      toast('Comprobante enviado. Tu quiniela se publicará al confirmar el depósito.', 'ok');
       render();
-      $('#tabla').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
+      $('#jugar').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       console.error(err);
-      // Pase lo que pase, el botón vuelve a la vida: dejarlo en "Enviando…"
-      // para siempre sería peor que el error mismo.
+      toast(err.message || 'No se pudo enviar el comprobante. Revisa tu internet e inténtalo otra vez.', 'err');
+    } finally {
       S.enviando = false;
-      toast('No se pudo enviar. Revisa tu internet y vuelve a intentar.', 'err');
-      renderProgreso();
+      if (!S.solicitud) renderProgreso();
     }
   }
 
@@ -1473,8 +1662,8 @@
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) cerrar(); });
     addEventListener('hashchange', () => { if (location.hash === '#admin') abrir(); });
 
-    // El link mágico regresa con la sesión en la URL; supabase-js la levanta
-    // solo. Volvemos a pintar cuando eso pase.
+    // Supabase avisa en cuanto una sesión con contraseña queda lista. Volvemos
+    // a pintar para que el permiso se compruebe del lado de la base.
     S.sb.auth.onAuthStateChange(() => { if (!overlay.hidden) pintarAdmin(); });
 
     if (location.hash === '#admin') abrir();
@@ -1509,49 +1698,91 @@
       return;
     }
 
-    pintarHerramientas(body, session);
+    await pintarHerramientas(body, session);
   }
 
   function pintarLogin(body) {
+    const admin = CFG.ADMIN_LOGIN || {};
+    if (!textoConfigurado(admin.usuario) || !textoConfigurado(admin.email)) {
+      body.innerHTML = `<div class="alert is-err"><b>Falta configurar el acceso.</b>
+        Abre <code>config.js</code> y escribe el correo real del admin en
+        <code>ADMIN_LOGIN.email</code>. La contraseña se establece en Supabase Auth.</div>`;
+      return;
+    }
+
     body.innerHTML = `
       <div class="admin-login">
-        <p>Escribe tu correo y te mando un link para entrar.<br>
-          <b>No hay contraseña</b> que recordar ni que se pueda robar.</p>
-        <input id="admin-email" type="email" placeholder="tu@correo.com"
-               autocomplete="email" spellcheck="false">
+        <p>Acceso privado del administrador.</p>
+        <input id="admin-user" type="text" placeholder="Usuario"
+               autocomplete="username" autocapitalize="none" spellcheck="false">
+        <input id="admin-password" type="password" placeholder="Contraseña"
+               autocomplete="current-password">
         <button class="btn btn-primary btn-lg" id="admin-enviar" type="button"
-                style="width:100%">Mándame el link</button>
+                style="width:100%">Entrar al dashboard</button>
       </div>`;
 
-    const input = $('#admin-email');
+    const input = $('#admin-user');
+    const password = $('#admin-password');
     const btn = $('#admin-enviar');
-    input.value = store.get('admin-email', '');
+    input.value = store.get('admin-user', admin.usuario);
 
-    const enviar = async () => {
-      const email = (input.value || '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast('Ese correo no se ve bien.', 'err');
+    const entrar = async () => {
+      const usuario = (input.value || '').trim().toLowerCase();
+      const esperado = String(admin.usuario).trim().toLowerCase();
+      if (usuario !== esperado) return toast('Usuario o contraseña incorrectos.', 'err');
+      if (!password.value) return toast('Escribe la contraseña.', 'err');
 
-      btn.disabled = true; btn.textContent = 'Enviando…';
-      const { error } = await S.sb.auth.signInWithOtp({
-        email, options: { emailRedirectTo: location.origin + location.pathname + '#admin' }
+      btn.disabled = true; btn.textContent = 'Entrando…';
+      const { error } = await S.sb.auth.signInWithPassword({
+        email: String(admin.email).trim().toLowerCase(),
+        password: password.value
       });
 
       if (error) {
-        btn.disabled = false; btn.textContent = 'Mándame el link';
-        return toast('No se pudo enviar: ' + error.message, 'err');
+        btn.disabled = false; btn.textContent = 'Entrar al dashboard';
+        return toast('Usuario o contraseña incorrectos.', 'err');
       }
 
-      store.set('admin-email', email);
-      body.innerHTML = `<div class="alert is-ok">
-        <b>Listo, revisa tu correo.</b> Te llegó un link a <b>${esc(email)}</b>.
-        Ábrelo desde este mismo dispositivo y regresas ya adentro.</div>`;
+      store.set('admin-user', usuario);
+      await pintarAdmin();
     };
 
-    btn.addEventListener('click', enviar);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(); });
+    btn.addEventListener('click', entrar);
+    [input, password].forEach((el) => el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') entrar();
+    }));
   }
 
-  function pintarHerramientas(body, session) {
+  async function cargarSolicitudesAdmin() {
+    const { data, error } = await S.sb.from('solicitudes_quiniela')
+      .select('id, nombre, picks, comprobante_path, creado_at')
+      .eq('jornada_id', S.jornada.id)
+      .eq('estado', 'pendiente')
+      .order('creado_at', { ascending: true });
+    if (error) throw error;
+
+    const solicitudes = data || [];
+    const rutas = solicitudes.map((s) => s.comprobante_path).filter(Boolean);
+    if (!rutas.length) return solicitudes;
+
+    const { data: urls, error: errorUrls } = await S.sb.storage
+      .from('comprobantes-pago').createSignedUrls(rutas, 60 * 30);
+    if (errorUrls) throw errorUrls;
+
+    const porRuta = Object.fromEntries((urls || []).map((u) => [u.path, u.signedUrl]));
+    return solicitudes.map((s) => ({ ...s, comprobante_url: porRuta[s.comprobante_path] || '' }));
+  }
+
+  async function pintarHerramientas(body, session) {
+    let solicitudes;
+    try {
+      solicitudes = await cargarSolicitudesAdmin();
+    } catch (err) {
+      body.innerHTML = `<div class="alert is-err"><b>No se pudieron cargar los comprobantes.</b>
+        ¿Ya ejecutaste <code>migracion-pagos-pendientes.sql</code>? (${esc(err.message)})</div>`;
+      return;
+    }
+
     const partidos = S.partidos;
 
     const sugerenciasTv = CANALES.map((c) => `<option value="${esc(c)}"></option>`).join('');
@@ -1598,8 +1829,37 @@
                 data-nombre="${esc(r.nombre)}" title="Borrar a esta persona">${ICO_BOTE}</button>
       </div>`;
 
+    const filaSolicitud = (s) => {
+      const comprobante = s.comprobante_url
+        ? `<a class="adm-proof" href="${esc(s.comprobante_url)}" target="_blank" rel="noopener noreferrer" title="Abrir comprobante completo">
+            <img src="${esc(s.comprobante_url)}" alt="Comprobante de ${esc(s.nombre)}"></a>`
+        : '<div class="adm-proof adm-proof-empty">No se pudo abrir la captura.</div>';
+      const fecha = new Date(s.creado_at);
+      const cuando = isNaN(fecha) ? '' : fecha.toLocaleString('es-MX', {
+        timeZone: 'America/Mexico_City', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+      });
+      const cantidad = Array.isArray(s.picks) ? s.picks.length : 0;
+      return `
+        <article class="adm-solicitud">
+          ${comprobante}
+          <div class="adm-solicitud-copy">
+            <h4>${esc(s.nombre)}</h4>
+            <p>${cantidad} picks listos · comprobante recibido ${esc(cuando)}</p>
+            <button class="btn btn-primary adm-publicar" type="button" data-publicar="${esc(s.id)}">
+              Confirmar depósito y publicar
+            </button>
+          </div>
+        </article>`;
+    };
+
     body.innerHTML = `
       <datalist id="canales-lista">${sugerenciasTv}</datalist>
+
+      <div class="admin-seccion">
+        <h3>Depósitos por revisar · ${solicitudes.length}</h3>
+        <p>Abre la captura, confirma que llegó el depósito y publica. Hasta entonces sus picks no aparecen para nadie.</p>
+        ${solicitudes.map(filaSolicitud).join('') || '<div class="empty">No hay depósitos pendientes.</div>'}
+      </div>
 
       <div class="admin-seccion">
         <h3>Resultados</h3>
@@ -1630,6 +1890,13 @@
       const auto = e.target.closest('[data-auto]');
       const pago = e.target.closest('[data-pago]');
       const borrar = e.target.closest('[data-borrar]');
+      const publicar = e.target.closest('[data-publicar]');
+
+      if (publicar) {
+        if (!confirm('¿Ya revisaste el comprobante?\n\nAl confirmar se publican sus 9 pronósticos y ya no se pueden cambiar.')) return;
+        await publicarSolicitud(publicar.dataset.publicar);
+        return;
+      }
 
       // Forzar un resultado. `manual: true` es lo que hace que el cron
       // respete tu palabra y no te lo sobreescriba en la siguiente corrida.
@@ -1684,6 +1951,19 @@
 
     const salir = $('#admin-salir');
     if (salir) salir.addEventListener('click', salirAdmin);
+  }
+
+  async function publicarSolicitud(id) {
+    const { error } = await S.sb.rpc('aprobar_solicitud_quiniela', { p_solicitud: id });
+    if (error) {
+      toast(error.message || 'No se pudo publicar esta quiniela.', 'err');
+      return;
+    }
+
+    toast('Depósito confirmado: la quiniela ya está publicada.', 'ok');
+    await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
+    render();
+    await pintarAdmin();
   }
 
   // Guarda, avisa, y vuelve a leer todo para que el panel y la página de

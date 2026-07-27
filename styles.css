@@ -1341,6 +1341,17 @@ main {
 .todo-locked { font-size: .8rem; color: var(--text-3); display: flex; align-items: center; gap: 7px; }
 .todo-locked svg { width: 14px; height: 14px; flex: none; }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: -2px 0 16px;
+}
+
+.section-actions small { font-size: .78rem; color: var(--text-3); }
+.btn-pdf { padding: 10px 16px; font-size: .84rem; }
+
 /* ── Por qué $5 ─────────────────────────────────────────────────────── */
 
 .porque-grid {
@@ -1397,6 +1408,96 @@ main {
 .footer-brand strong { font-size: 1rem; font-weight: 750; letter-spacing: -.02em; }
 .footer-brand span { font-size: .82rem; color: var(--text-3); }
 .footer-legal { font-size: .78rem; color: var(--text-3); max-width: 62ch; line-height: 1.55; }
+
+/* ── Modal de depósito ─────────────────────────────────────────────────── */
+
+.payment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: clamp(0px, 3vw, 28px);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.payment-modal {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(88dvh, 800px);
+  overflow-y: auto;
+  padding: 26px 24px 24px;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: var(--shadow-3);
+  animation: sube .45s var(--ease);
+}
+
+@media (min-width: 700px) { .payment-modal { border-radius: var(--r-xl); } }
+
+.payment-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-2);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.payment-close:hover { color: var(--text); transform: scale(1.07); }
+.payment-body h2 { font-size: 1.45rem; padding-right: 42px; margin: 4px 0 7px; }
+.payment-lede { color: var(--text-2); font-size: .92rem; line-height: 1.55; }
+
+.payment-total {
+  margin: 18px 0 12px;
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: var(--accent-ink);
+}
+
+.payment-total small { display: block; font-size: .72rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; opacity: .72; }
+.payment-total strong { display: block; margin-top: 2px; font-size: 1.65rem; letter-spacing: -.04em; }
+
+.payment-account {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 18px;
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+}
+
+.payment-account div { display: grid; gap: 2px; }
+.payment-account span { color: var(--text-3); font-size: .7rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.payment-account b { font-size: .93rem; font-variant-numeric: tabular-nums; word-break: break-word; }
+
+.payment-file {
+  display: block;
+  margin: 14px 0 10px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--stroke));
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+
+.payment-file input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.payment-file strong { display: block; font-size: .9rem; }
+.payment-file small { display: block; margin-top: 4px; color: var(--text-2); font-size: .78rem; line-height: 1.4; }
+.payment-file.is-ready { border-style: solid; border-color: var(--accent); }
+.payment-note { margin: 0 0 16px; color: var(--text-3); font-size: .78rem; line-height: 1.45; }
+.payment-submit { width: 100%; }
 
 /* ── Panel de admin ─────────────────────────────────────────────────────
    Va encima de todo, como una hoja que sube. Solo tú lo ves. */
@@ -1591,6 +1692,40 @@ main {
 
 .adm-borrar:hover { color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); }
 .adm-borrar svg { width: 15px; height: 15px; }
+
+/* Solicitudes que esperan revisar el depósito. La captura se queda privada:
+   solo se obtiene una URL temporal después de comprobar que eres admin. */
+.adm-solicitud {
+  display: grid;
+  grid-template-columns: minmax(110px, 170px) 1fr;
+  gap: 13px;
+  padding: 13px;
+  border-radius: var(--r-md);
+  background: var(--glass-2);
+  border: 1px solid var(--stroke);
+  margin-bottom: 10px;
+}
+
+.adm-proof {
+  display: block;
+  min-height: 110px;
+  overflow: hidden;
+  border-radius: 11px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+}
+
+.adm-proof img { width: 100%; height: 100%; min-height: 110px; object-fit: cover; }
+.adm-proof-empty { display: grid; place-items: center; padding: 12px; color: var(--text-3); font-size: .74rem; text-align: center; }
+.adm-solicitud-copy { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.adm-solicitud-copy h4 { font-size: .96rem; margin-bottom: 3px; }
+.adm-solicitud-copy p { color: var(--text-3); font-size: .76rem; line-height: 1.4; margin-bottom: 11px; }
+.adm-publicar { margin-top: auto; padding: 9px 12px; font-size: .78rem; }
+
+@media (max-width: 440px) {
+  .adm-solicitud { grid-template-columns: 1fr; }
+  .adm-proof { max-height: 220px; }
+}
 
 /* Entrar */
 .admin-login { text-align: center; padding: 18px 0; }

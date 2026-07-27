@@ -11,6 +11,10 @@
 --    2. Crea la lista de administradores (por ahora: tú).
 --    3. Le da permiso de ESCRIBIR únicamente a esos correos.
 --
+-- El panel actual inicia sesión con usuario + contraseña. El usuario visible
+-- (`jonawow`) se configura en config.js; Supabase Auth sigue usando el correo
+-- de esta lista por debajo para firmar la sesión y aplicar estas reglas.
+--
 --  ── LA IDEA, Y POR QUÉ ESTO SÍ ES SEGURO ──────────────────────────────
 --
 --  El panel vive dentro de la misma página pública, y usa la MISMA llave
@@ -18,9 +22,9 @@
 --  que antes hacía imposible tener un panel: esa llave se salta todas las
 --  reglas, y cualquiera que abriera el código fuente podría borrar todo.
 --
---  Aquí el candado no es la llave: es tu CORREO. Entras con un link mágico
---  que Supabase te manda; a partir de ahí tu sesión trae tu correo firmado
---  y las reglas de abajo comparan contra la lista de admins. Si alguien más
+--  Aquí el candado no es la llave: es tu CORREO. Entras con tu usuario y
+--  contraseña; Supabase firma la sesión con el correo configurado y
+--  las reglas de abajo comparan contra la lista de admins. Si alguien más
 --  abre #admin, la página no le muestra nada — y aunque se brincara eso, la
 --  base le rechaza cada escritura. El candado está aquí, no en el HTML.
 -- ═══════════════════════════════════════════════════════════════════════
@@ -62,7 +66,7 @@ alter table admins enable row level security;
 
 do $$
 declare
-  mi_correo text := 'PON_AQUI_TU_CORREO';
+  mi_correo text := 'jonathan.mtz27@gmail.com';
 begin
   if mi_correo like 'PON_AQUI%' or position('@' in mi_correo) = 0 then
     raise exception E'\n\n  ⚠  Falta poner tu correo en la línea "mi_correo".\n'
@@ -136,11 +140,15 @@ create policy admin_borra_participantes on participantes
 
 
 -- ═══════════════════════════════════════════════════════════════════════
---  FALTA UN PASO FUERA DE AQUÍ (si no, el link mágico no te va a llegar):
+--  ACCESO CON CONTRASEÑA (se configura una sola vez):
 --
---    Authentication → URL Configuration
---      · Site URL          → https://jonawow.github.io/quiniela-ligaMX/
---      · Redirect URLs     → agrega esa misma liga
+--    1. Authentication → Providers → Email: deja habilitado Email.
+--    2. Authentication → Users → Add user: crea (no invites) el usuario con
+--       el MISMO correo que insertaste arriba en `admins`. Pon una contraseña
+--       fuerte y activa "Auto Confirm User" si te aparece la opción.
+--    3. En config.js escribe ese mismo correo en ADMIN_LOGIN.email. La
+--       contraseña no va en ningún archivo: solo vive en Supabase Auth.
 --
---  Sin eso, Supabase manda el correo pero el link te rebota.
+--  Para entrar: abre la página con #admin y usa el usuario `jonawow` junto
+--  con la contraseña que configuraste en Supabase.
 -- ═══════════════════════════════════════════════════════════════════════

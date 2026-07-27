@@ -327,6 +327,12 @@
         <h2 class="display">Pronósticos de todos</h2>
         <p>Lo que le puso cada quien, a la vista de todos y desde el primer momento. Aquí no hay nada escondido.</p>
       </div>
+      <div class="section-actions">
+        <button class="btn btn-ghost btn-pdf" id="todos-pdf" type="button">
+          Guardar PDF
+        </button>
+        <small>Abre la impresión para guardar esta jornada como PDF.</small>
+      </div>
       <div class="todos-grid" id="todos-grid">
         <div class="empty">Cargando pronósticos…</div>
       </div>
@@ -439,6 +445,14 @@
       </p>
     </div>
   </footer>
+
+  <!-- ═══════════════ DEPÓSITO Y COMPROBANTE ═══════════════ -->
+  <div class="payment-overlay" id="payment-overlay" hidden>
+    <div class="payment-modal glass" role="dialog" aria-modal="true" aria-labelledby="payment-title">
+      <button class="payment-close" id="payment-close" type="button" aria-label="Cerrar">&times;</button>
+      <div class="payment-body" id="payment-body"></div>
+    </div>
+  </div>
 
   <!-- ═══════════════ PANEL DE ADMIN ═══════════════
        Solo aparece al abrir la página con #admin al final de la URL, y solo

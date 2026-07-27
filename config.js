@@ -31,13 +31,29 @@ window.QMX_CONFIG = {
 
   // ── Identidad ────────────────────────────────────────────────────────
   NOMBRE: 'Quiniela MX',
-  TORNEO: 'Apertura 2026'
+  TORNEO: 'Apertura 2026',
+
+  // El usuario que se muestra en el acceso privado. Supabase inicia sesión
+  // con correo + contraseña, por eso se configura también el correo real.
+  // La contraseña NUNCA se escribe aquí ni se sube a GitHub.
+  ADMIN_LOGIN: {
+    usuario: 'jonawow',
+    email: 'PON_AQUI_EL_CORREO_DEL_ADMIN_EN_SUPABASE'
+  },
+
+  // Datos visibles para quien vaya a hacer el depósito. Completa los campos
+  // reales antes de publicar. `monto` es el total que se cobra.
+  PAGO: {
+    monto: 52,
+    titular: 'PON_AQUI_EL_NOMBRE_DEL_TITULAR',
+    banco: 'PON_AQUI_EL_BANCO',
+    cuenta: '',
+    clabe: '',
+    tarjeta: '',
+    referencia: ''
+  }
 
   // ── ¿Y el panel de admin? ────────────────────────────────────────────
-  // No hay, y es a propósito: el panel es el dashboard de Supabase.
-  // Marcar pagos, corregir un resultado o cambiar la cuota se hacen desde
-  // Table Editor (ver README). Un panel dentro de la página tendría que
-  // cargar la llave service_role en el navegador para poder escribir, y
-  // esa llave se salta TODAS las reglas de seguridad: cualquiera que abra
-  // el código fuente podría borrar la quiniela entera. No vale la pena.
+  // El panel se abre agregando #admin a la URL. La llave service_role nunca
+  // llega al navegador: el permiso se comprueba con RLS en schema-admin.sql.
 };

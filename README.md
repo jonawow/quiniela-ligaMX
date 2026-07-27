@@ -108,6 +108,37 @@ Queda en `https://TU_USUARIO.github.io/TU_REPO/`.
 
 ---
 
+## Actualización: depósito antes de publicar y acceso privado
+
+Esta versión cambia el flujo de una quiniela: ahora primero se sube el
+comprobante de depósito y el administrador la publica desde `#admin` después
+de revisarlo. Los pronósticos pendientes no son públicos ni cuentan en la
+tabla.
+
+1. En Supabase SQL Editor, ejecuta `schema-admin.sql` si todavía no tienes el
+   panel de administración. En su bloque `mi_correo`, usa tu correo real.
+2. Ejecuta `migracion-pagos-pendientes.sql`. Crea la tabla privada de
+   solicitudes, el bucket de comprobantes y la función segura que publica los
+   nueve picks al aprobarlos.
+3. En **Authentication → Providers → Email**, confirma que Email está
+   habilitado. Luego en **Authentication → Users → Add user**, elige crear un
+   usuario (no enviar invitación) con el mismo correo que agregaste a
+   `admins`; ahí es donde eliges su contraseña. Activa **Auto Confirm User**
+   si te aparece. Así este acceso no depende del correo que está fallando.
+   Si tu panel no muestra esa opción, desactiva temporalmente **Confirm
+   email** dentro del proveedor Email mientras creas este único usuario.
+4. En `config.js`, completa `ADMIN_LOGIN.email` con ese correo y llena los
+   datos reales en `PAGO`. El usuario visible ya viene como `jonawow`.
+   La contraseña no se escribe en código, `config.js` ni GitHub.
+5. Sube los cambios. Entra al panel con `https://TU-SITIO/#admin`, usuario
+   `jonawow` y la contraseña que creaste.
+
+Los jugadores eligen sus nueve picks, ven la cuenta de depósito, suben una
+captura JPG/PNG/WEBP de hasta 5 MB y esperan la aprobación. El panel muestra
+esa captura con el botón **Confirmar depósito y publicar**. En
+**Pronósticos de todos**, el botón **Guardar PDF** abre la impresión del
+navegador para guardar la captura de la jornada como PDF.
+
 ## El día a día
 
 **Nada.** En serio: el cron crea las jornadas, cierra los pronósticos al
