@@ -35,6 +35,7 @@
     pagos: {},        // { [participanteId]: true } — solo lo usa el panel
     historial: [],    // ganadores de jornadas ya finalizadas, reciente primero
     picksCache: {},   // { [jornadaId]: pronosticos[] } — se llena bajo demanda
+    pagosHistoricosGuardando: new Set(),
     posiciones: [],   // tabla general de la Liga MX (la trae el cron)
     timer: null
   };
@@ -2181,6 +2182,8 @@
       }
 
       if (pagoHistorico) {
+        // Impide que otro listener acumulado procese este mismo clic.
+        e.stopImmediatePropagation();
         const participanteId = Number(pagoHistorico.dataset.pagoHistorico);
         const jornadaId = Number(pagoHistorico.dataset.jornadaPago);
         const historial = S.historial.find((it) => Number(it.jornada.id) === jornadaId);
@@ -2262,42 +2265,47 @@
   }
 
   async function guardarPagoHistorico(participanteId, jornadaId, pagado, boton) {
+    const llave = `${jornadaId}:${participanteId}`;
+    if (S.pagosHistoricosGuardando.has(llave)) return;
+    S.pagosHistoricosGuardando.add(llave);
     if (boton) boton.disabled = true;
-    const { error } = await S.sb.from('pagos').upsert({
-      jornada_id: jornadaId,
-      participante_id: participanteId,
-      pagado,
-      marcado_at: new Date().toISOString()
-    }, { onConflict: 'jornada_id,participante_id' });
+    try {
+      const { error } = await S.sb.from('pagos').upsert({
+        jornada_id: jornadaId,
+        participante_id: participanteId,
+        pagado,
+        marcado_at: new Date().toISOString()
+      }, { onConflict: 'jornada_id,participante_id' });
 
-    if (error) {
-      if (boton) boton.disabled = false;
-      toast('No se pudo actualizar el pago: ' + error.message, 'err');
-      return;
+      if (error) {
+        toast('No se pudo actualizar el pago: ' + error.message, 'err');
+        return;
+      }
+
+      const historial = S.historial.find((it) => Number(it.jornada.id) === Number(jornadaId));
+      if (historial) {
+        if (!historial.pagos) historial.pagos = {};
+        historial.pagos[participanteId] = pagado;
+      }
+
+      const texto = pagado ? '✓ Ya pagó' : 'No ha pagado';
+      document.querySelectorAll(`[data-pago-historico="${participanteId}"][data-jornada-pago="${jornadaId}"]`)
+        .forEach((control) => {
+          control.classList.toggle('is-paid', pagado);
+          control.classList.toggle('is-unpaid', !pagado);
+          control.textContent = texto;
+        });
+      document.querySelectorAll(`[data-pago-burbuja="${participanteId}"][data-jornada-burbuja="${jornadaId}"]`)
+        .forEach((burbuja) => {
+          burbuja.classList.toggle('is-paid', pagado);
+          burbuja.classList.toggle('is-unpaid', !pagado);
+          burbuja.textContent = texto;
+        });
+    } finally {
+      S.pagosHistoricosGuardando.delete(llave);
+      document.querySelectorAll(`[data-pago-historico="${participanteId}"][data-jornada-pago="${jornadaId}"]`)
+        .forEach((control) => { control.disabled = false; });
     }
-
-    const historial = S.historial.find((it) => Number(it.jornada.id) === Number(jornadaId));
-    if (historial) {
-      if (!historial.pagos) historial.pagos = {};
-      historial.pagos[participanteId] = pagado;
-    }
-
-    const texto = pagado ? '✓ Ya pagó' : 'No ha pagado';
-    document.querySelectorAll(`[data-pago-historico="${participanteId}"][data-jornada-pago="${jornadaId}"]`)
-      .forEach((control) => {
-        control.classList.toggle('is-paid', pagado);
-        control.classList.toggle('is-unpaid', !pagado);
-        control.textContent = texto;
-        control.disabled = false;
-      });
-    document.querySelectorAll(`[data-pago-burbuja="${participanteId}"][data-jornada-burbuja="${jornadaId}"]`)
-      .forEach((burbuja) => {
-        burbuja.classList.toggle('is-paid', pagado);
-        burbuja.classList.toggle('is-unpaid', !pagado);
-        burbuja.textContent = texto;
-      });
-
-    toast(pagado ? 'Marcado como pagado.' : 'Marcado como no pagado.', 'ok');
   }
 
   // Guarda, avisa, y vuelve a leer todo para que el panel y la página de
