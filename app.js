@@ -279,17 +279,25 @@
     // todas las jornadas (para el histórico de resultados). Los pronósticos de
     // cada quien NO se traen aquí: pesan más y solo hacen falta al desplegar
     // una jornada o abrir el detalle, así que se cargan bajo demanda.
-    const [rTabla, rPartidos] = await Promise.all([
+    const [rTabla, rPartidos, rPagos] = await Promise.all([
       S.sb.from('v_tabla').select('*').in('jornada_id', ids),
-      S.sb.from('partidos').select('*').in('jornada_id', ids).order('fecha', { ascending: true })
+      S.sb.from('partidos').select('*').in('jornada_id', ids).order('fecha', { ascending: true }),
+      S.sb.from('pagos').select('jornada_id, participante_id, pagado').in('jornada_id', ids)
     ]);
 
     const tablaPorJornada = agrupar(rTabla.data || [], 'jornada_id');
     const partidosPorJornada = agrupar(rPartidos.data || [], 'jornada_id');
+    const pagosPorJornada = new Map();
+    (rPagos.data || []).forEach((pago) => {
+      if (!pagosPorJornada.has(pago.jornada_id)) pagosPorJornada.set(pago.jornada_id, {});
+      pagosPorJornada.get(pago.jornada_id)[pago.participante_id] = Boolean(pago.pagado);
+    });
 
     S.historial = finalizadas.map((j) => ({
       jornada: j,
       partidos: partidosPorJornada.get(j.id) || [],
+      tabla: tablaPorJornada.get(j.id) || [],
+      pagos: pagosPorJornada.get(j.id) || {},
       ...resumenGanador(tablaPorJornada.get(j.id) || [])
     }));
   }
@@ -707,12 +715,14 @@
   // o rojo según el resultado. La usan por igual la jornada activa (Pronósticos
   // de todos) y cada jornada del histórico. Devuelve solo las tarjetas; el
   // estado vacío lo pone quien llama, porque el mensaje cambia según el lugar.
-  function htmlGridPicks(rows, partidos) {
+  function htmlGridPicks(rows, partidos, opciones = {}) {
+    const { pagos = {}, mostrarPago = false } = opciones;
     const porPersona = new Map();
     (rows || []).forEach((r) => {
       const nombre = r.participantes?.nombre || '—';
-      if (!porPersona.has(nombre)) porPersona.set(nombre, []);
-      porPersona.get(nombre).push(r);
+      const llave = r.participante_id ?? nombre;
+      if (!porPersona.has(llave)) porPersona.set(llave, { participanteId: r.participante_id, nombre, picks: [] });
+      porPersona.get(llave).picks.push(r);
     });
     if (!porPersona.size) return '';
 
@@ -722,26 +732,34 @@
     const orden = Object.fromEntries(partidos.map((p, i) => [p.id, i]));
     const porId = Object.fromEntries(partidos.map((p) => [p.id, p]));
 
-    const gente = [...porPersona.entries()].map(([nombre, picks]) => {
+    const gente = [...porPersona.values()].map(({ participanteId, nombre, picks }) => {
       picks.sort((a, b) => (orden[a.partido_id] ?? 99) - (orden[b.partido_id] ?? 99));
       const aciertos = picks.filter((p) => porId[p.partido_id]?.resultado === p.pick).length;
-      return { nombre, picks, aciertos };
+      return { participanteId, nombre, picks, aciertos };
     });
     // Más aciertos arriba: en una jornada terminada, el de hasta arriba es el
     // ganador y se lee de un vistazo por qué.
     gente.sort((a, b) => b.aciertos - a.aciertos || a.nombre.localeCompare(b.nombre));
 
-    return gente.map(({ nombre, picks, aciertos }) => `
+    return gente.map(({ participanteId, nombre, picks, aciertos }) => {
+      const pagado = Boolean(pagos[participanteId]);
+      const burbujaPago = !mostrarPago ? '' : `
+        <span class="todo-payment ${pagado ? 'is-paid' : 'is-unpaid'}">
+          ${pagado ? '✓ Ya pagó' : 'No ha pagado'}
+        </span>`;
+      return `
         <article class="todo-card">
           <div class="todo-head">
             <span class="avatar">${esc(iniciales(nombre))}</span>
             <div style="min-width:0">
               <div class="todo-name">${esc(nombre)}</div>
               <div class="todo-sub">${aciertos} de ${picks.length} aciertos</div>
+              ${burbujaPago}
             </div>
           </div>
           <div class="todo-picks">${chips(picks, porId)}</div>
-        </article>`).join('');
+        </article>`;
+    }).join('');
 
     function chips(picks, porId) {
       return picks.map((p) => chipPick(p.pick, porId[p.partido_id])).join('');
@@ -1320,7 +1338,10 @@
       try {
         const it = S.historial.find((x) => String(x.jornada.id) === String(id));
         const rows = await cargarPicksJornada(id);
-        const grid = htmlGridPicks(rows, it ? it.partidos : []);
+        const grid = htmlGridPicks(rows, it ? it.partidos : [], {
+          pagos: it?.pagos || {},
+          mostrarPago: true
+        });
         cont.innerHTML = grid
           ? `<div class="todos-grid">${grid}</div>`
           : '<div class="empty">Nadie pronosticó esta jornada.</div>';
@@ -1893,6 +1914,32 @@
       </article>`;
     };
 
+    const tarjetaPagosPasados = (it) => {
+      const personas = (it.tabla || []).slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+      if (!personas.length) return '';
+      return `<article class="admin-history-payment-card">
+        <div class="admin-history-payment-head">
+          <div><span class="eyebrow">Jornada ${esc(it.jornada.numero)}</span><h4>Pagos de J${esc(it.jornada.numero)}</h4></div>
+          <span>${personas.length} ${personas.length === 1 ? 'persona' : 'personas'}</span>
+        </div>
+        <div class="admin-history-payment-list">
+          ${personas.map((persona) => {
+            const pagado = Boolean(it.pagos?.[persona.participante_id]);
+            return `<div class="admin-history-payment-row">
+              <span class="avatar">${esc(iniciales(persona.nombre))}</span>
+              <b>${esc(persona.nombre)}</b>
+              <button class="admin-payment-history ${pagado ? 'is-paid' : 'is-unpaid'}" type="button"
+                      data-pago-historico="${esc(persona.participante_id)}" data-jornada-pago="${esc(it.jornada.id)}">
+                ${pagado ? '✓ Ya pagó' : 'No ha pagado'}
+              </button>
+            </div>`;
+          }).join('')}
+        </div>
+      </article>`;
+    };
+
+    const pagosPasados = S.historial.map(tarjetaPagosPasados).filter(Boolean).join('');
+
     const tarjetaPartido = (p) => {
       const boton = (valor, texto) => `<button class="adm-res${p.resultado === valor ? ' is-on' : ''}" type="button" data-res="${valor}" data-id="${p.id}">${esc(texto)}</button>`;
       return `<article class="adm-partido${p.manual ? ' es-manual' : ''}">
@@ -1922,6 +1969,11 @@
       <section class="admin-section" id="admin-quinielas">
         <div class="admin-section-head"><div><span class="eyebrow">Quinielas visibles</span><h3>Pronósticos publicados</h3><p>Aquí ves exactamente los equipos elegidos por cada jugador. Eliminar solo quita su quiniela de esta jornada.</p></div><span class="admin-count">${publicadas.length}</span></div>
         <div class="admin-quinielas-grid">${publicadas.map(tarjetaQuiniela).join('') || '<div class="admin-empty"><b>Aún no hay quinielas publicadas.</b><span>Aprueba un depósito para que aparezca la primera.</span></div>'}</div>
+      </section>
+
+      <section class="admin-section" id="admin-pagos-pasados">
+        <div class="admin-section-head"><div><span class="eyebrow">Control histórico</span><h3>Pagos de jornadas pasadas</h3><p>Toca la burbuja de cada jugador para alternar entre “Ya pagó” y “No ha pagado”. Este estado se refleja en Resultados de jornadas pasadas.</p></div></div>
+        <div class="admin-history-payments">${pagosPasados || '<div class="admin-empty"><b>No hay jornadas pasadas con quinielas.</b><span>Sus pagos aparecerán aquí al finalizar cada jornada.</span></div>'}</div>
       </section>
 
       <section class="admin-section" id="admin-resultados">
@@ -2052,6 +2104,7 @@
       const publicar = e.target.closest('[data-publicar]');
       const rechazar = e.target.closest('[data-rechazar]');
       const eliminar = e.target.closest('[data-eliminar]');
+      const pagoHistorico = e.target.closest('[data-pago-historico]');
 
       if (publicar) {
         if (!confirm('¿Ya revisaste el comprobante?\n\nAl confirmar se publican sus 9 pronósticos y ya no se pueden cambiar.')) return;
@@ -2090,6 +2143,15 @@
         await guardarAdmin(
           S.sb.from('partidos').update({ manual: false }).eq('id', auto.dataset.auto),
           'Listo: ese partido vuelve a jalar solo de ESPN.');
+        return;
+      }
+
+      if (pagoHistorico) {
+        const participanteId = Number(pagoHistorico.dataset.pagoHistorico);
+        const jornadaId = Number(pagoHistorico.dataset.jornadaPago);
+        const historial = S.historial.find((it) => Number(it.jornada.id) === jornadaId);
+        const nuevo = !historial?.pagos?.[participanteId];
+        await guardarPagoHistorico(participanteId, jornadaId, nuevo);
         return;
       }
 
@@ -2161,6 +2223,25 @@
 
     toast('Quiniela eliminada solo de esta jornada.', 'ok');
     await Promise.all([cargarPartidos(), cargarTabla(), cargarTodos(), cargarPagos()]);
+    render();
+    await pintarAdmin();
+  }
+
+  async function guardarPagoHistorico(participanteId, jornadaId, pagado) {
+    const { error } = await S.sb.from('pagos').upsert({
+      jornada_id: jornadaId,
+      participante_id: participanteId,
+      pagado,
+      marcado_at: new Date().toISOString()
+    }, { onConflict: 'jornada_id,participante_id' });
+
+    if (error) {
+      toast('No se pudo actualizar el pago: ' + error.message, 'err');
+      return;
+    }
+
+    toast(pagado ? 'Marcado como pagado.' : 'Marcado como no pagado.', 'ok');
+    await cargarHistorial();
     render();
     await pintarAdmin();
   }

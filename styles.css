@@ -1288,6 +1288,21 @@ main {
 .todo-name { font-weight: 650; font-size: .94rem; letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-sub { font-size: .74rem; color: var(--text-3); }
 
+/* Solo aparece en las jornadas pasadas: permite ver de un vistazo quién
+   liquidó esa quiniela, sin mezclarlo con el flujo de depósito actual. */
+.todo-payment {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: var(--r-full);
+  font-size: .62rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.todo-payment.is-paid { color: var(--accent); background: var(--accent-soft); }
+.todo-payment.is-unpaid { color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); }
+
 .todo-picks { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* Cada chip es un pick dibujado: el escudo del equipo por el que le fue.
@@ -1919,6 +1934,20 @@ main {
 .admin-link-action:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .admin-danger { padding: 7px 9px; color: var(--live); background: color-mix(in srgb, var(--live) 7%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
 .admin-danger:hover { background: color-mix(in srgb, var(--live) 16%, transparent); }
+
+.admin-history-payments { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.admin-history-payment-card { padding: 16px; border: 1px solid var(--stroke); border-radius: var(--r-lg); background: var(--glass); }
+.admin-history-payment-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--stroke); }
+.admin-history-payment-head h4 { margin-top: 3px; font-size: .93rem; }
+.admin-history-payment-head > span { color: var(--text-3); font-size: .7rem; }
+.admin-history-payment-list { display: grid; gap: 7px; margin-top: 12px; }
+.admin-history-payment-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.admin-history-payment-row .avatar { width: 29px; height: 29px; font-size: .63rem; }
+.admin-history-payment-row b { flex: 1; overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.admin-payment-history { flex: none; padding: 5px 8px; border: 1px solid transparent; border-radius: var(--r-full); font-size: .64rem; font-weight: 800; transition: transform .2s var(--ease-back), filter .2s; }
+.admin-payment-history:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.admin-payment-history.is-paid { color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+.admin-payment-history.is-unpaid { color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); border-color: color-mix(in srgb, var(--live) 25%, transparent); }
 
 .admin-results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 10px; }
 .admin-results-grid .adm-partido { height: 100%; margin: 0; padding: 15px; }
