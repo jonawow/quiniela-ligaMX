@@ -1672,11 +1672,25 @@
     const overlay = $('#admin-overlay');
     if (!overlay) return;
 
-    const abrir = () => {
+    const irASeccionAdmin = (hash, comportamiento = 'smooth') => {
+      const cuerpo = $('#admin-body');
+      const destino = cuerpo?.querySelector(hash);
+      if (!destino) return false;
+      cuerpo.scrollTo({
+        top: Math.max(0, destino.offsetTop - 18),
+        behavior: comportamiento
+      });
+      return true;
+    };
+
+    const abrir = async () => {
       overlay.hidden = false;
       document.documentElement.classList.add('admin-open');
       document.body.classList.add('admin-open');
-      pintarAdmin();
+      await pintarAdmin();
+      if (location.hash.startsWith('#admin-')) {
+        requestAnimationFrame(() => irASeccionAdmin(location.hash, 'auto'));
+      }
     };
     const cerrar = () => {
       overlay.hidden = true;
@@ -1689,15 +1703,27 @@
 
     $('#admin-close').addEventListener('click', cerrar);
     $('#admin-salir').addEventListener('click', salirAdmin);
+    overlay.querySelector('.admin-nav').addEventListener('click', (e) => {
+      const enlace = e.target.closest('a[href^="#admin-"]');
+      if (!enlace) return;
+      e.preventDefault();
+      const hash = enlace.getAttribute('href');
+      if (!irASeccionAdmin(hash)) return;
+      history.replaceState(null, '', location.pathname + location.search + hash);
+    });
     overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) cerrar(); });
-    addEventListener('hashchange', () => { if (location.hash === '#admin') abrir(); });
+    addEventListener('hashchange', () => {
+      if (!location.hash.startsWith('#admin')) return;
+      if (overlay.hidden) abrir();
+      else if (location.hash.startsWith('#admin-')) irASeccionAdmin(location.hash);
+    });
 
     // Supabase avisa en cuanto una sesión con contraseña queda lista. Volvemos
     // a pintar para que el permiso se compruebe del lado de la base.
     S.sb.auth.onAuthStateChange(() => { if (!overlay.hidden) pintarAdmin(); });
 
-    if (location.hash === '#admin') abrir();
+    if (location.hash.startsWith('#admin')) abrir();
   }
 
   async function pintarAdmin() {
