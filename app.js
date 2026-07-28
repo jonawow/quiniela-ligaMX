@@ -716,7 +716,7 @@
   // de todos) y cada jornada del histórico. Devuelve solo las tarjetas; el
   // estado vacío lo pone quien llama, porque el mensaje cambia según el lugar.
   function htmlGridPicks(rows, partidos, opciones = {}) {
-    const { pagos = {}, mostrarPago = false } = opciones;
+    const { pagos = {}, mostrarPago = false, jornadaId = null } = opciones;
     const porPersona = new Map();
     (rows || []).forEach((r) => {
       const nombre = r.participantes?.nombre || '—';
@@ -744,7 +744,8 @@
     return gente.map(({ participanteId, nombre, picks, aciertos }) => {
       const pagado = Boolean(pagos[participanteId]);
       const burbujaPago = !mostrarPago ? '' : `
-        <span class="todo-payment ${pagado ? 'is-paid' : 'is-unpaid'}">
+        <span class="todo-payment ${pagado ? 'is-paid' : 'is-unpaid'}"
+              data-pago-burbuja="${esc(participanteId)}" data-jornada-burbuja="${esc(jornadaId)}">
           ${pagado ? '✓ Ya pagó' : 'No ha pagado'}
         </span>`;
       return `
@@ -1340,7 +1341,8 @@
         const rows = await cargarPicksJornada(id);
         const grid = htmlGridPicks(rows, it ? it.partidos : [], {
           pagos: it?.pagos || {},
-          mostrarPago: true
+          mostrarPago: true,
+          jornadaId: id
         });
         cont.innerHTML = grid
           ? `<div class="todos-grid">${grid}</div>`
@@ -2122,6 +2124,12 @@
   }
 
   function conectarAdmin(body) {
+    // El contenido del dashboard se repinta varias veces al iniciar sesión o
+    // guardar algo. El contenedor se conserva, así que el listener delegado
+    // debe registrarse una sola vez; de lo contrario un clic se ejecuta doble.
+    if (body.dataset.adminEventosConectados === 'si') return;
+    body.dataset.adminEventosConectados = 'si';
+
     body.addEventListener('click', async (e) => {
       const res = e.target.closest('[data-res]');
       const auto = e.target.closest('[data-auto]');
@@ -2177,7 +2185,7 @@
         const jornadaId = Number(pagoHistorico.dataset.jornadaPago);
         const historial = S.historial.find((it) => Number(it.jornada.id) === jornadaId);
         const nuevo = !historial?.pagos?.[participanteId];
-        await guardarPagoHistorico(participanteId, jornadaId, nuevo);
+        await guardarPagoHistorico(participanteId, jornadaId, nuevo, pagoHistorico);
         return;
       }
 
@@ -2253,7 +2261,8 @@
     await pintarAdmin();
   }
 
-  async function guardarPagoHistorico(participanteId, jornadaId, pagado) {
+  async function guardarPagoHistorico(participanteId, jornadaId, pagado, boton) {
+    if (boton) boton.disabled = true;
     const { error } = await S.sb.from('pagos').upsert({
       jornada_id: jornadaId,
       participante_id: participanteId,
@@ -2262,14 +2271,33 @@
     }, { onConflict: 'jornada_id,participante_id' });
 
     if (error) {
+      if (boton) boton.disabled = false;
       toast('No se pudo actualizar el pago: ' + error.message, 'err');
       return;
     }
 
+    const historial = S.historial.find((it) => Number(it.jornada.id) === Number(jornadaId));
+    if (historial) {
+      if (!historial.pagos) historial.pagos = {};
+      historial.pagos[participanteId] = pagado;
+    }
+
+    const texto = pagado ? '✓ Ya pagó' : 'No ha pagado';
+    document.querySelectorAll(`[data-pago-historico="${participanteId}"][data-jornada-pago="${jornadaId}"]`)
+      .forEach((control) => {
+        control.classList.toggle('is-paid', pagado);
+        control.classList.toggle('is-unpaid', !pagado);
+        control.textContent = texto;
+        control.disabled = false;
+      });
+    document.querySelectorAll(`[data-pago-burbuja="${participanteId}"][data-jornada-burbuja="${jornadaId}"]`)
+      .forEach((burbuja) => {
+        burbuja.classList.toggle('is-paid', pagado);
+        burbuja.classList.toggle('is-unpaid', !pagado);
+        burbuja.textContent = texto;
+      });
+
     toast(pagado ? 'Marcado como pagado.' : 'Marcado como no pagado.', 'ok');
-    await cargarHistorial();
-    render();
-    await pintarAdmin();
   }
 
   // Guarda, avisa, y vuelve a leer todo para que el panel y la página de
