@@ -1154,9 +1154,9 @@
       <div class="payment-total"><small>Total a depositar</small><strong>${money(montoPago())}</strong></div>
       <div class="payment-account">${cuentaPagoHtml()}</div>
       <label class="payment-file" id="payment-file-label">
-        <input id="payment-file" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
-        <strong id="payment-file-title">Subir captura del comprobante</strong>
-        <small id="payment-file-help">JPG, PNG o WEBP · máximo 5 MB. Puedes tomar la foto desde aquí.</small>
+        <input id="payment-file" type="file" accept="image/jpeg,image/png,image/webp">
+        <strong id="payment-file-title">Elegir captura del comprobante</strong>
+        <small id="payment-file-help">JPG, PNG o WEBP · máximo 5 MB. Puedes elegir Cámara, Fotos o Archivos.</small>
       </label>
       <p class="payment-note">Tu pronóstico queda apartado, pero no será visible ni contará en la tabla hasta que el admin confirme el depósito.</p>
       <button class="btn btn-primary btn-lg payment-submit" id="payment-submit" type="button">Enviar comprobante y quiniela</button>`;
@@ -1170,7 +1170,7 @@
     input.addEventListener('change', () => {
       const archivo = input.files?.[0];
       label.classList.toggle('is-ready', !!archivo);
-      title.textContent = archivo ? archivo.name : 'Subir captura del comprobante';
+      title.textContent = archivo ? archivo.name : 'Elegir captura del comprobante';
     });
 
     $('#payment-submit').addEventListener('click', () => enviarSolicitudPago(nombre));

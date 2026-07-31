@@ -21,7 +21,7 @@
    marcadores se mueven, eso no se vale.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const VERSION = 'qmx-v7';        // ⬅ SÚBELE AQUÍ (v2, v3...) EN CADA CAMBIO
+const VERSION = 'qmx-v8';        // ⬅ SÚBELE AQUÍ (v2, v3...) EN CADA CAMBIO
 
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_FIJO = `${VERSION}-fijo`;
